@@ -15,6 +15,7 @@ int main(int argc, char** argv) {
 
     ap = std::make_unique<App>();
     db = std::make_unique<Librarydb>();
+    db->db_path = "";
     db->init();
 
     return ap->run();
