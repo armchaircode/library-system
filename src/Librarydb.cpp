@@ -8,13 +8,67 @@ void Librarydb::init() {
         return;
     }
 
-    databs = std::make_unique<SQLite::Database>(db_path);
-    if(!databs->tableExists("user"))
+    databs = std::make_unique<SQLite::Database>(db_path, SQLite::OPEN_READWRITE);
+    if(!databs->tableExists("users"))
         populate();
 }
 
 void Librarydb::populate(){
-    // TODO: make bunch of queries to make tables
+    // Create users table
+    databs->exec(R"#(
+                 CREATE TABLE IF NOT EXISTS [users]
+                 (
+                    [email] VARCHAR(50) PRIMARY KEY NOT NULL,
+                    [name] VARCHAR(20) NOT NULL DEFAULT 'USER',
+                    [password] VARCHAR(50) NOT NULL,
+                    [type] VARCHAR(7) NOT NULL DEFAULT 'Regular'
+                 )
+                 )#");
+    // Default amin account
+    databs->exec(R"#(
+                 INSERT INTO [users] (email, name, password, type)
+                    VALUES ('root@library.me', 'Root', '1234567890', 'Admin')
+                 )#");
+    // Create books table
+    databs->exec(R"#(
+                 CREATE TABLE IF NOT EXISTS [books]
+                 (
+                    [book_id] INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    [title] VARCHAR(100) NOT NULL,
+                    [author] VARCHAR(50) NOT NULL,
+                    [publisher] VARCHAR(50) NOT NULL,
+                    [pub_year] INTEGER(4) NOT NULL,
+                    [description] VARCHAR(200),
+                    [edtion] INTEGER(2),
+                    [rating] NUMERIC(2,1)
+                 )
+                 )#");
+    // Create favourites relationship table
+    databs->exec(R"#(
+                 CREATE TABLE IF NOT EXISTS [favourites]
+                 (
+                    [email] VARCHAR(50) NOT NULL,
+                    [book_id] INTEGER NOT NULL,
+                    CONSTRAINT [pk_favourites] PRIMARY KEY ([email], [book_id]),
+                    FOREIGN KEY ([email]) REFERENCES [users] ([email])
+                        ON DELETE CASCADE ON UPDATE NO ACTION,
+                    FOREIGN KEY ([book_id]) REFERENCES [books] ([book_id])
+                        ON DELETE CASCADE ON UPDATE NO ACTION
+                 )
+                 )#");
+    // Crate borrowed relationship table
+     databs->exec(R"#(
+                 CREATE TABLE IF NOT EXISTS [borrows]
+                 (
+                    [email] VARCHAR(50) NOT NULL,
+                    [book_id] INTEGER NOT NULL,
+                    CONSTRAINT [pk_favourites] PRIMARY KEY ([email], [book_id]),
+                    FOREIGN KEY ([email]) REFERENCES [users] ([email])
+                        ON DELETE CASCADE ON UPDATE NO ACTION,
+                    FOREIGN KEY ([book_id]) REFERENCES [books] ([book_id])
+                        ON DELETE CASCADE ON UPDATE NO ACTION
+                 )
+                 )#");
 }
 
 SQLite::Statement Librarydb::getfavourites(std::string& username) {
