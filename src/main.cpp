@@ -46,7 +46,12 @@ int main(int argc, char** argv) {
     std::filesystem::path data_dir;
 
     #ifdef WINDOWS_TARGET_H
-    //TODO: read windows environment variable
+    if(auto dir = std::getenv("APPDATA")){
+        data_dir = dir;
+    }
+    else {
+        data_dir = data_dir / getenv("USERPROFILE") / "AppData" / "Roaming";
+    }
     #else
     if(auto dir = std::getenv("XDG_DATA_HOME")){
         data_dir = dir;
