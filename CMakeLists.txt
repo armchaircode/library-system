@@ -16,7 +16,7 @@ include_directories(
 
 add_executable(${PROJECT_NAME} ${SRCFILES})
 if (WIN32)
-    target_compile_definitions(${PROJECT_NAME} -DWINDOWS_TARGET_H)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC -DWINDOWS_TARGET_H)
 endif(WIN32)
 target_compile_options(${PROJECT_NAME}
     PUBLIC -std=c++20)
