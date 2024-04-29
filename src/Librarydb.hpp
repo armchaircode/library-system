@@ -14,16 +14,18 @@ class Librarydb{
             return *databs;
         }
         void init();
-        SQLite::Statement getfavourites(std::string& username);
-        SQLite::Statement searchBook(std::string& val);
-        SQLite::Statement searchUser(std::string& val);
-        void addUser(User& nuser);
-        void removeUser(std::string& username);
-        void addBook(Book& nbook);
-        void removeBook(std::string& isbn);
-        void addFavourite(std::string& username, std::string& isbn);
-        void borrow(std::string& username, std::string& isbn);
-        void unborrow(std::string& username, std::string& isbn);
+        SQLite::Statement getFavourites(std::string username);
+        SQLite::Statement getBorrowed(std::string username);
+        SQLite::Statement searchBook(std::string val);
+        SQLite::Statement searchUser(std::string val);
+        void addUser(User nuser, std::string password);
+        void removeUser(std::string username);
+        void addBook(Book nbook);
+        void removeBook(std::string isbn);
+        void addFavourite(std::string username, std::string isbn);
+        void borrow(std::string username, std::string isbn);
+        void unborrow(std::string username, std::string isbn);
+        User restoreSession(std::string session);
         std::string db_path;
     private:
         std::unique_ptr<SQLite::Database> databs;

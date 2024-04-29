@@ -8,6 +8,7 @@ enum class UserClass{
 };
 
 struct User {
+    std::string email;
     std::string username;
     UserClass type;
 };
