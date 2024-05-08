@@ -66,10 +66,10 @@ int main(int argc, char** argv) {
 
     db = std::make_unique<Librarydb>();
 
-    if(!db_path.empty()) {
+    if(not db_path.empty()) {
         try{
             auto path = std::filesystem::canonical(db_path);
-            if (!std::filesystem::is_regular_file(path)){
+            if (not std::filesystem::is_regular_file(path)){
                 std::cerr<<"Error: Can't open database file "<<path<<" : Not regular file\n";
                 return EXIT_FAILURE;
             }
@@ -82,7 +82,7 @@ int main(int argc, char** argv) {
     }
     else {
         std::string path = data_dir / "library.db";
-        if(!std::filesystem::is_regular_file(path)){
+        if(not std::filesystem::is_regular_file(path)){
             auto fs = std::ofstream(path.c_str());
         }
         db->db_path = path.c_str();

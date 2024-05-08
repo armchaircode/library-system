@@ -1,12 +1,16 @@
 #include "App.hpp"
 #include "Librarydb.hpp"
+
 #include "ftxui/component/screen_interactive.hpp"
 #include "ftxui/component/component.hpp"
+
+#include "SQLiteCpp/Transaction.h"
 
 #include <cstdlib>
 #include <fstream>
 #include <memory>
 #include <exception>
+#include <vector>
 
 class Exit : public std::exception {};
 
@@ -28,7 +32,8 @@ int App::run() {
         }
         // Now logged in
         auto screen = ftxui::ScreenInteractive::Fullscreen();
-
+        auto books = db->getAllBooks();
+        std::string selected_book = books.front();
         // something else
     }
     catch(Exit& e){

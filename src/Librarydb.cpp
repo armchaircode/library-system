@@ -1,6 +1,8 @@
 #include "Librarydb.hpp"
+#include "SQLiteCpp/Transaction.h"
 #include "User.hpp"
 #include <memory>
+#include <vector>
 
 void Librarydb::init() {
     if(db_path.empty()) {
@@ -19,7 +21,8 @@ void Librarydb::populate(){
                     [username] VARCHAR(20) PRIMARY KEY NOT NULL,
                     [email] VARCHAR(50) NOT NULL,
                     [password] VARCHAR(50) NOT NULL,
-                    [type] VARCHAR(7) NOT NULL DEFAULT 'Regular'
+                    [type] VARCHAR(7) NOT NULL DEFAULT 'Regular',
+                    UNIQIE ([email])
                  )
                  )#");
     // Default amin account
@@ -125,13 +128,47 @@ void Librarydb::removeBook(std::string book_id) {
 }
 
 void Librarydb::addFavourite(std::string username, std::string book_id) {
-    // TODO: favourite the said book for the the said user
+    auto query = R"#(
+        INSERT INTO [favourites] (username, book_id)
+        VALUES ( ?, ?);
+    )#";
+    SQLite::Statement stmnt(*databs, query);
+    stmnt.bind(1, username);
+    stmnt.bind(2, book_id);
+    stmnt.exec();
 }
 
 void Librarydb::borrow(std::string username, std::string book_id) {
-    // TODO: add the book to borrowed books
+    auto query = R"#(
+        INSERT INTO [borrows] (username, book_id)
+        VALUES ( ?, ?);
+    )#";
+    SQLite::Statement stmnt(*databs, query);
+    stmnt.bind(1, username);
+    stmnt.bind(2, book_id);
+    stmnt.exec();
 }
 
 void Librarydb::unborrow(std::string username, std::string book_id) {
-    // TODO: remove the from borrowed books
+    SQLite::Statement stmnt(*databs, "DELETE FROM [borrows] WHERE username = ? AND book_id = ?");
+    stmnt.bind(1, username);
+    stmnt.bind(2, book_id);
+    stmnt.exec();
+}
+
+std::vector<std::string> Librarydb::getAllBooks() {
+    std::vector<std::string> books;
+    SQLite::Statement stmnt(*databs, "SELECT [isbn] FROM [books]");
+    while (stmnt.executeStep())
+        books.push_back(stmnt.getColumn(0).getString());
+    return std::move(books);
+}
+
+Book Librarydb::getBook(std::string isbn) {
+    Book bk{};
+    SQLite::Statement stmnt(*databs, "SELECT * FROM [books] WHERE isbn = ?");
+    stmnt.bind(1, isbn);
+    stmnt.executeStep();
+    //TODO: Copy book details from columns to Book object
+    return std::move(bk);
 }
