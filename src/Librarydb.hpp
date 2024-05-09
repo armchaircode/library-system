@@ -6,6 +6,7 @@
 #include "Book.hpp"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -31,10 +32,12 @@ class Librarydb{
         std::vector<std::string> getAllBooks(); // returns isbns of all books
         Book getBook(std::string isbn);
 
+        std::optional<User> authenticate(const std::string username, const std::string password);
+
         std::string db_path;
     private:
         std::unique_ptr<SQLite::Database> databs;
-        void populate();
+        void makeSchema();
 };
 
 inline std::unique_ptr<Librarydb> db;

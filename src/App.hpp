@@ -2,6 +2,7 @@
 
 #include "User.hpp"
 
+#include <ftxui/component/screen_interactive.hpp>
 #include <memory>
 #include <filesystem>
 
@@ -13,7 +14,10 @@ class App {
         std::filesystem::path session_file;
     private:
         void login();
+        void home();
         std::unique_ptr<User> active_user;
+        inline static ftxui::ScreenInteractive screen = ftxui::ScreenInteractive::Fullscreen();
+        void writeSession();
 };
 
 inline std::unique_ptr<App> ap;
