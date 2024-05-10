@@ -5,8 +5,10 @@
 #include "ftxui/component/screen_interactive.hpp"
 #include "ftxui/component/component.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <fstream>
+#include <ftxui/dom/elements.hpp>
 #include <iostream>
 #include <memory>
 #include <exception>
@@ -54,7 +56,17 @@ void App::writeSession() {
 void App::login() {
     std::string username, password, email;
 
-    auto login_button = ftxui::Button("Login", [&](){
+    auto signup_action = [&] {
+        // save sign-up info and set active_user
+        auto usr = User{email, username, UserClass::NORMAL};
+        db->addUser(usr, password);
+        // signed up
+        active_user = std::make_unique<User>(usr);
+        screen.Exit();
+
+    };
+
+    auto login_action = [&] {
         //read button data and set active_user
         auto usr = db->authenticate(username, password);
         if (not usr) {
@@ -65,27 +77,57 @@ void App::login() {
             active_user = std::make_unique<User>(usr.value());
             screen.Exit();
         }
-    });
+    };
 
-    auto signup_button = ftxui::Button("Sign Up", [&](){
-        // save sign-up info and set active_user
-        auto usr = User{email, username, UserClass::NORMAL};
-        db->addUser(usr, password);
-        // signed up
-        active_user = std::make_unique<User>(usr);
-        screen.Exit();
-    });
+    auto quit_action = [&] {
+        throw Exit{};
+    };
 
-    auto quit_button = ftxui::Button("Quit", [](){ throw Exit{}; });
+    // buttons
+    auto signup_button = ftxui::Button("Sign Up", signup_action);
+    auto login_button = ftxui::Button("Login", login_action);
+    auto quit_button = ftxui::Button("Quit", quit_action);
+
+    // input boxes
+    ftxui::InputOption password_option;
+    password_option.password = true;
+    auto password_box = ftxui::Input(&password, "password", password_option);
+    auto username_box = ftxui::Input(&username, "username");
+    auto email_box = ftxui::Input(&email, "email");
+
+    auto welcome_text = ftxui::text("Welcome to Library Management System") | ftxui::bold;
+
+    /*
+    auto signup_screen_container = ftxui::Container::Vertical({
+        email_box,
+        username_box,
+        password_box,
+        ftxui::Container::Horizontal({
+            signup_button,
+            quit_button
+        })
+    });
+    */
 
     auto login_screen_container = ftxui::Container::Vertical({
-        ftxui::Input(username, "username"),
-        ftxui::Input(password, "password"),
-        login_button,
-        signup_button,
-        quit_button
+        username_box,
+        password_box,
+        ftxui::Container::Horizontal({
+            login_button,
+            quit_button
+        })
     });
-    screen.Loop(login_screen_container);
+
+    auto login_renderer = ftxui::Renderer(login_screen_container, [&] {
+        return ftxui::vbox({
+            welcome_text,
+            ftxui::separator(),
+            login_screen_container->Render()
+        }
+        ) | ftxui::border;
+    });
+
+    screen.Loop(login_renderer);
 }
 
 void App::home() {
