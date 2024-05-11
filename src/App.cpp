@@ -5,11 +5,9 @@
 #include "ftxui/component/screen_interactive.hpp"
 #include "ftxui/component/component.hpp"
 
-#include <algorithm>
 #include <cstdlib>
 #include <fstream>
 #include <ftxui/dom/elements.hpp>
-#include <iostream>
 #include <memory>
 #include <exception>
 #include <vector>
@@ -17,21 +15,15 @@
 class Exit : public std::exception {};
 
 int App::run() {
-    // screens
-    //screen = std::make_unique<ftxui::ScreenInteractive>();
+    if(not session.empty()) {
+        attemptRestore();
+    }
     try {
-        if(session.empty()) {
-            login();
-        }
-        else{
-            //TODO: attempt to restore the session
-            auto usr = db->restoreSession(session);
-            if(usr.username.empty()){
-                // restore failed, session expired
+        while(true) {
+            if(not active_user) {
                 login();
             }
-            else{
-                active_user = std::make_unique<User>(usr);
+            else {
                 home();
             }
         }
@@ -41,6 +33,18 @@ int App::run() {
     }
     //
     return EXIT_SUCCESS;
+}
+
+void App::attemptRestore() {
+    //TODO: attempt to restore the session
+    auto usr = db->restoreSession(session);
+    if(usr.username.empty()){
+        // restore failed, session expired
+        return;
+    }
+    else{
+        active_user = std::make_unique<User>(usr);
+    }
 }
 
 void App::writeSession() {
@@ -54,21 +58,20 @@ void App::writeSession() {
 }
 
 void App::login() {
-    std::string username, password, email;
+    std::string login_username, signup_username, signup_password, login_password, email;
 
     auto signup_action = [&] {
         // save sign-up info and set active_user
-        auto usr = User{email, username, UserClass::NORMAL};
-        db->addUser(usr, password);
+        auto usr = User{email, signup_username, UserClass::NORMAL};
+        db->addUser(usr, signup_password);
         // signed up
         active_user = std::make_unique<User>(usr);
         screen.Exit();
-
     };
 
     auto login_action = [&] {
         //read button data and set active_user
-        auto usr = db->authenticate(username, password);
+        auto usr = db->authenticate(login_username, login_password);
         if (not usr) {
             // TODO: authentication failed
         }
@@ -79,57 +82,74 @@ void App::login() {
         }
     };
 
-    auto quit_action = [&] {
-        throw Exit{};
-    };
-
-    // buttons
-    auto signup_button = ftxui::Button("Sign Up", signup_action);
-    auto login_button = ftxui::Button("Login", login_action);
-    auto quit_button = ftxui::Button("Quit", quit_action);
-
     // input boxes
     ftxui::InputOption password_option;
     password_option.password = true;
-    auto password_box = ftxui::Input(&password, "password", password_option);
-    auto username_box = ftxui::Input(&username, "username");
-    auto email_box = ftxui::Input(&email, "email");
-
-    auto welcome_text = ftxui::text("Welcome to Library Management System") | ftxui::bold;
-
-    /*
-    auto signup_screen_container = ftxui::Container::Vertical({
-        email_box,
-        username_box,
-        password_box,
-        ftxui::Container::Horizontal({
-            signup_button,
-            quit_button
-        })
-    });
-    */
 
     auto login_screen_container = ftxui::Container::Vertical({
-        username_box,
-        password_box,
+        ftxui::Input(&login_username, "Username") | ftxui::border,
+        ftxui::Input(&login_password, "Password", password_option) | ftxui::border,
         ftxui::Container::Horizontal({
-            login_button,
-            quit_button
+            ftxui::Button("Login", login_action, ftxui::ButtonOption::Ascii()),
+            ftxui::Button("Quit", [] { throw Exit(); }, ftxui::ButtonOption::Ascii())
         })
     });
 
-    auto login_renderer = ftxui::Renderer(login_screen_container, [&] {
-        return ftxui::vbox({
-            welcome_text,
-            ftxui::separator(),
-            login_screen_container->Render()
-        }
-        ) | ftxui::border;
+    auto signup_screen_container = ftxui::Container::Vertical({
+        ftxui::Input(&email, "Email") | ftxui::border,
+        ftxui::Input(&signup_username, "Username") | ftxui::border,
+        ftxui::Input(&signup_password, "Password", password_option) | ftxui::border,
+        ftxui::Container::Horizontal({
+            ftxui::Button("Sign Up", signup_action, ftxui::ButtonOption::Ascii()),
+            ftxui::Button("Quit", [&] { throw Exit(); }, ftxui::ButtonOption::Ascii())
+        })
     });
 
-    screen.Loop(login_renderer);
+    std::vector<std::string> toggle_labels{"Login", "Signup"};
+    int login_signup_selected = 0;
+
+    auto login_signup_screen = ftxui::Container::Vertical({
+        ftxui::Toggle(&toggle_labels, &login_signup_selected),
+        ftxui::Container::Tab({login_screen_container, signup_screen_container },
+            &login_signup_selected)
+    });
+
+    auto login_signup_renderer = ftxui::Renderer(login_signup_screen, [&] {
+        return ftxui::vbox({
+            ftxui::hbox(
+                ftxui::filler(),
+                ftxui::text("Welcome to Library Management System") | ftxui::bold,
+                ftxui::filler()
+            ),
+            ftxui::separator(),
+            ftxui::filler(),
+            ftxui::hbox(
+                ftxui::filler(),
+                login_signup_screen->Render(),
+                ftxui::filler()
+            ),
+            ftxui::filler()
+        }) | ftxui::border;
+    });
+
+    screen.Loop(login_signup_renderer);
 }
 
 void App::home() {
     // TODO: home screen implemntation
+    std::string username = active_user->username;
+    auto home_screen = ftxui::Container::Vertical({
+        ftxui::Button("Logout", [&]{
+            active_user = nullptr;
+            screen.Exit();
+        }, ftxui::ButtonOption::Ascii())
+    });
+
+    auto home_renderer = ftxui::Renderer(home_screen, [&] {
+        return ftxui::vbox(
+            ftxui::text(std::string("Welcome home: ") + username),
+            home_screen->Render()
+        );
+    });
+    screen.Loop(home_renderer);
 }
