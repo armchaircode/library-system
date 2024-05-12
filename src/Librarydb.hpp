@@ -34,6 +34,8 @@ class Librarydb{
 
         std::optional<User> authenticate(const std::string username, const std::string password);
 
+        bool usernameStatus(const std::string& username, std::string& status);
+
         std::string db_path;
     private:
         std::unique_ptr<SQLite::Database> databs;

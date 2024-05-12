@@ -5,19 +5,20 @@
 #include "ftxui/component/screen_interactive.hpp"
 #include "ftxui/component/component.hpp"
 
+#include <chrono>
 #include <cstdlib>
 #include <fstream>
 #include <ftxui/dom/elements.hpp>
+#include <future>
 #include <memory>
 #include <exception>
+#include <thread>
+#include <utility>
 #include <vector>
 
 class Exit : public std::exception {};
 
 int App::run() {
-    if(not session.empty()) {
-        attemptRestore();
-    }
     try {
         while(true) {
             if(not active_user) {
@@ -47,6 +48,15 @@ void App::attemptRestore() {
     }
 }
 
+void flip(bool& flag) {
+    auto th = std::thread([&flag] {
+        flag = true;
+        std::this_thread::sleep_for(std::chrono::seconds{1});;
+        flag = false;
+    });
+    th.detach();
+}
+
 void App::writeSession() {
     // Shouldn't be called when there is no active user
     if (not active_user)
@@ -58,27 +68,44 @@ void App::writeSession() {
 }
 
 void App::login() {
-    std::string login_username, signup_username, signup_password, login_password, email;
+    using namespace ftxui;
 
+    if(not session.empty()) {
+        attemptRestore();
+    }
+    if (active_user) {
+        home();
+    }
+
+    std::string login_username, signup_username, signup_password, login_password, email;
     auto signup_action = [&] {
         // save sign-up info and set active_user
         auto usr = User{email, signup_username, UserClass::NORMAL};
         db->addUser(usr, signup_password);
         // signed up
         active_user = std::make_unique<User>(usr);
-        screen.Exit();
+        signup_password.clear();
+        signup_username.clear();
+        email.clear();
+        home();
     };
 
+    bool show_failed_authentication = false;
+    std::unique_ptr<std::thread> thr;
     auto login_action = [&] {
         //read button data and set active_user
         auto usr = db->authenticate(login_username, login_password);
         if (not usr) {
-            // TODO: authentication failed
-        }
+            login_username.clear();
+            login_password.clear();
+            flip(show_failed_authentication);
+            }
         else {
             // loged in
             active_user = std::make_unique<User>(usr.value());
-            screen.Exit();
+            login_password.clear();
+            login_username.clear();
+            home();
         }
     };
 
@@ -86,50 +113,57 @@ void App::login() {
     ftxui::InputOption password_option;
     password_option.password = true;
 
-    auto login_screen_container = ftxui::Container::Vertical({
-        ftxui::Input(&login_username, "Username") | ftxui::border,
-        ftxui::Input(&login_password, "Password", password_option) | ftxui::border,
-        ftxui::Container::Horizontal({
-            ftxui::Button("Login", login_action, ftxui::ButtonOption::Ascii()),
-            ftxui::Button("Quit", [] { throw Exit(); }, ftxui::ButtonOption::Ascii())
+    auto failed_login = Renderer([&] {
+        return text("Login failed. Wrong credentials!") | color(Color::Red);
+    }) | Maybe(&show_failed_authentication);
+
+    auto login_screen_container = Container::Vertical({
+        Input(&login_username, "Username") | size(WIDTH, ftxui::EQUAL, 40) | border,
+        Input(&login_password, "Password", password_option) | size(WIDTH, ftxui::EQUAL, 40) | border,
+        failed_login,
+        Container::Horizontal({
+            Button("Login", login_action, ButtonOption::Ascii()),
+            Button("Quit", [] { throw Exit(); }, ButtonOption::Ascii())
         })
     });
 
-    auto signup_screen_container = ftxui::Container::Vertical({
-        ftxui::Input(&email, "Email") | ftxui::border,
-        ftxui::Input(&signup_username, "Username") | ftxui::border,
-        ftxui::Input(&signup_password, "Password", password_option) | ftxui::border,
-        ftxui::Container::Horizontal({
-            ftxui::Button("Sign Up", signup_action, ftxui::ButtonOption::Ascii()),
-            ftxui::Button("Quit", [&] { throw Exit(); }, ftxui::ButtonOption::Ascii())
-        })
+    std::string email_status, username_status, password_status;
+    auto signup_screen_container = Container::Vertical({
+        Input(&email, "Email") | border,
+        Input(&signup_username, "Username") | border,
+        Input(&signup_password, "Password", password_option) | ftxui::border,
+        Container::Horizontal({
+            Button("Sign Up", signup_action, ButtonOption::Ascii()),
+            Button("Quit", [&] { throw Exit(); }, ButtonOption::Ascii())
+       })
     });
 
     std::vector<std::string> toggle_labels{"Login", "Signup"};
     int login_signup_selected = 0;
 
-    auto login_signup_screen = ftxui::Container::Vertical({
-        ftxui::Toggle(&toggle_labels, &login_signup_selected),
-        ftxui::Container::Tab({login_screen_container, signup_screen_container },
+    auto login_signup_screen = Container::Vertical({
+        Toggle(&toggle_labels, &login_signup_selected),
+        Container::Tab({login_screen_container, signup_screen_container },
             &login_signup_selected)
     });
 
-    auto login_signup_renderer = ftxui::Renderer(login_signup_screen, [&] {
-        return ftxui::vbox({
-            ftxui::hbox(
-                ftxui::filler(),
-                ftxui::text("Welcome to Library Management System") | ftxui::bold,
-                ftxui::filler()
+
+    auto login_signup_renderer = Renderer(login_signup_screen, [&] {
+        return vbox({
+            hbox(
+                filler(),
+                text("Welcome to Library Management System") | bold,
+                filler()
             ),
-            ftxui::separator(),
-            ftxui::filler(),
-            ftxui::hbox(
-                ftxui::filler(),
+            separator(),
+            filler(),
+            hbox(
+                filler(),
                 login_signup_screen->Render(),
-                ftxui::filler()
+                filler()
             ),
-            ftxui::filler()
-        }) | ftxui::border;
+            filler()
+        }) | border;
     });
 
     screen.Loop(login_signup_renderer);

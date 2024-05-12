@@ -213,3 +213,13 @@ std::optional<User> Librarydb::authenticate(const std::string username, const st
         return {};
     }
 }
+
+bool Librarydb::usernameStatus(const std::string& username, std::string& status) {
+    if (username.size() < 4) {
+        status = "Too short";
+        return false;
+    }
+    SQLite::Statement stmnt(*databs, "SELECT [email] FROM [users] WHERE username = ?");
+    stmnt.bind(1, username);
+    return ! stmnt.executeStep();
+}

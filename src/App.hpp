@@ -19,6 +19,8 @@ class App {
         std::unique_ptr<User> active_user;
         inline static ftxui::ScreenInteractive screen = ftxui::ScreenInteractive::Fullscreen();
         void writeSession();
+
+        std::vector<std::thread> dumped_threads;
 };
 
 inline std::unique_ptr<App> ap;
