@@ -82,7 +82,6 @@ void App::login() {
     auto signup_status = Renderer([&] {
         return text(signup_error_message) | color(Color::Red);
     }) | Maybe([&] {
-            signup_ok = false;
             bool show_error = true;
             if ( !signup_username.empty() && signup_username.size() < 4) {
                 signup_error_message = "Username too short!";
@@ -133,9 +132,9 @@ void App::login() {
             }
         else {
             // loged in
-            active_user = std::make_unique<User>(usr.value());
             login_password.clear();
             login_username.clear();
+            active_user = std::make_unique<User>(usr.value());
             home();
         }
     };
