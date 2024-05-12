@@ -214,12 +214,14 @@ std::optional<User> Librarydb::authenticate(const std::string username, const st
     }
 }
 
-bool Librarydb::usernameStatus(const std::string& username, std::string& status) {
-    if (username.size() < 4) {
-        status = "Too short";
-        return false;
-    }
+bool Librarydb::usernameExists(const std::string& username) {
     SQLite::Statement stmnt(*databs, "SELECT [email] FROM [users] WHERE username = ?");
     stmnt.bind(1, username);
-    return ! stmnt.executeStep();
+    return stmnt.executeStep();
+}
+
+bool Librarydb::emailIsUsed(const std::string& email) {
+    SQLite::Statement stmnt(*databs, "SELECT [username] FROM [users] WHERE email = ?");
+    stmnt.bind(1, email);
+    return stmnt.executeStep();
 }

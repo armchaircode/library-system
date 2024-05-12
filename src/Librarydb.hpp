@@ -34,7 +34,8 @@ class Librarydb{
 
         std::optional<User> authenticate(const std::string username, const std::string password);
 
-        bool usernameStatus(const std::string& username, std::string& status);
+        bool usernameExists(const std::string& username);
+        bool emailIsUsed(const std::string& email);
 
         std::string db_path;
     private:

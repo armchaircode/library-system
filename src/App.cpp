@@ -77,8 +77,41 @@ void App::login() {
         home();
     }
 
-    std::string login_username, signup_username, signup_password, login_password, email;
+    bool signup_ok = false;
+    std::string login_username, signup_username, signup_password, login_password, email, signup_error_message;
+    auto signup_status = Renderer([&] {
+        return text(signup_error_message) | color(Color::Red);
+    }) | Maybe([&] {
+            signup_ok = false;
+            bool show_error = true;
+            if ( !signup_username.empty() && signup_username.size() < 4) {
+                signup_error_message = "Username too short!";
+            }
+            else if ( !signup_username.empty() && db->usernameExists(signup_username)) {
+                signup_error_message = "Username is taken!";
+            }
+            else if ( !signup_password.empty() && signup_password.size() < 4) {
+                signup_error_message = "Password is too short!";
+            }
+            else if (!email.empty() && db->emailIsUsed(email)) {
+                signup_error_message = "Email is used before!";
+            }
+            else {
+                show_error = false;
+            }
+            signup_ok = !(show_error || signup_username.empty() || signup_password.empty() || email.empty());
+            return show_error;
+        });
+
+    bool show_failed_authentication = false;
+    auto failed_login = Renderer([&] {
+        return text("Login failed. Wrong credentials!") | color(Color::Red);
+    }) | Maybe(&show_failed_authentication);
+
     auto signup_action = [&] {
+        if (! signup_ok)
+            return;
+
         // save sign-up info and set active_user
         auto usr = User{email, signup_username, UserClass::NORMAL};
         db->addUser(usr, signup_password);
@@ -90,8 +123,6 @@ void App::login() {
         home();
     };
 
-    bool show_failed_authentication = false;
-    std::unique_ptr<std::thread> thr;
     auto login_action = [&] {
         //read button data and set active_user
         auto usr = db->authenticate(login_username, login_password);
@@ -113,10 +144,6 @@ void App::login() {
     ftxui::InputOption password_option;
     password_option.password = true;
 
-    auto failed_login = Renderer([&] {
-        return text("Login failed. Wrong credentials!") | color(Color::Red);
-    }) | Maybe(&show_failed_authentication);
-
     auto login_screen_container = Container::Vertical({
         Input(&login_username, "Username") | size(WIDTH, ftxui::EQUAL, 40) | border,
         Input(&login_password, "Password", password_option) | size(WIDTH, ftxui::EQUAL, 40) | border,
@@ -127,11 +154,11 @@ void App::login() {
         })
     });
 
-    std::string email_status, username_status, password_status;
     auto signup_screen_container = Container::Vertical({
-        Input(&email, "Email") | border,
-        Input(&signup_username, "Username") | border,
-        Input(&signup_password, "Password", password_option) | ftxui::border,
+        Input(&email, "Email") | size(WIDTH, ftxui::EQUAL, 40) | border,
+        Input(&signup_username, "Username") | size(WIDTH, ftxui::EQUAL, 40) | border,
+        Input(&signup_password, "Password", password_option) | size(WIDTH, ftxui::EQUAL, 40) | ftxui::border,
+        signup_status,
         Container::Horizontal({
             Button("Sign Up", signup_action, ButtonOption::Ascii()),
             Button("Quit", [&] { throw Exit(); }, ButtonOption::Ascii())
