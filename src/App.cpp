@@ -1,6 +1,6 @@
 #include "App.hpp"
 #include "Librarydb.hpp"
-#include "SQLiteCpp/Statement.h"
+#include "SQLiteCpp/Exception.h"
 #include "User.hpp"
 
 #include "ftxui/component/screen_interactive.hpp"
@@ -10,11 +10,12 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdlib>
-#include <deque>
 #include <fstream>
 #include <functional>
+#include <iostream>
 #include <memory>
 #include <exception>
+#include <sys/types.h>
 #include <thread>
 #include <vector>
 
@@ -31,8 +32,16 @@ int App::run() {
             }
         }
     }
+    catch (const SQLite::Exception& e) {
+        std::cerr<<"[ERROR] Database engine error. <"<<e.what()<<">"<<std::endl;
+        return EXIT_FAILURE;
+    }
     catch(Exit& e){
         // cleanup
+    }
+    catch(const std::exception& e) {
+        std::cerr<<"[Error] Unknown error. <"<<e.what()<<">"<<std::endl;
+        return EXIT_SUCCESS;
     }
     //
     return EXIT_SUCCESS;
@@ -224,7 +233,43 @@ void App::login() {
     screen.Loop(login_signup_renderer);
 }
 
-void App::home() {
+void App::adminHome() {
+    using namespace ftxui;
+    std::string username = active_user->username;
+
+    std::vector<std::string> main_selection {
+        "Add a book",
+        "Remove a book",
+        "Remove a user",
+        "Privelage management"
+    };
+
+    int main_menu_selected = 0;
+    auto main_menu = Menu(&main_selection, &main_menu_selected);
+
+    auto home_screen = Container::Vertical({
+        Container::Horizontal({
+            main_menu
+        }),
+        Button("Logout", [&]{
+            clearSession();
+            active_user = nullptr;
+            screen.Exit();
+        }, ButtonOption::Ascii()),
+        Button("Quit", [&] { throw Exit(); }, ButtonOption::Ascii())
+    });
+
+    auto home_renderer = Renderer(home_screen, [&] {
+        return ftxui::vbox(
+            home_screen->Render()
+        );
+    });
+    screen.Loop(home_screen);
+
+
+}
+
+void App::normalHome() {
     using namespace ftxui;
     std::string username = active_user->username;
 
@@ -281,4 +326,13 @@ void App::home() {
         );
     });
     screen.Loop(home_screen);
+
+}
+
+void App::home() {
+    if(active_user->type == UserClass::NORMAL)
+        normalHome();
+    else {
+        adminHome();
+    }
 }

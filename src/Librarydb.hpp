@@ -13,10 +13,7 @@
 
 class Librarydb{
     public:
-        SQLite::Database& getdb() {
-            return *databs;
-        }
-        void init();
+        Librarydb(const std::string& dbfile) : db_path(dbfile) { init(); }
         std::vector<std::string> getFavourites(std::string username);
         std::vector<std::string> getBorrowed(std::string username);
         std::vector<std::string> searchBook(std::string val);
@@ -41,8 +38,9 @@ class Librarydb{
         bool usernameExists(const std::string& username);
         bool emailIsUsed(const std::string& email);
 
-        std::string db_path;
     private:
+        void init();
+        std::string db_path;
         std::unique_ptr<SQLite::Database> databs;
         void makeSchema();
 };

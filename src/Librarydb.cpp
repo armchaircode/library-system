@@ -4,14 +4,12 @@
 #include "SQLiteCpp/Transaction.h"
 #include "User.hpp"
 
-#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <utility>
 #include <vector>
-#include <iostream>
-#include <exception>
 
 
 // forward declarations
@@ -19,7 +17,7 @@ std::string extractBookData(const SQLite::Statement& stmnt);
 
 void Librarydb::init() {
     if(db_path.empty()) {
-        return;
+        throw std::invalid_argument{"empty database filename"};
     }
     databs = std::make_unique<SQLite::Database>(db_path, SQLite::OPEN_READWRITE);
     if(not databs->tableExists("users"))
@@ -98,9 +96,8 @@ void Librarydb::makeSchema(){
     trxn.commit();
     }
     catch(SQLite::Exception& e) {
-        std::cerr << "[ERROR: Failed to create database schema. Sqlite errored out with <"<<e.what()<<">\n";
         trxn.rollback();
-        throw std::exception();
+        throw;
     }
 }
 

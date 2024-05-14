@@ -1,5 +1,6 @@
 #include "App.hpp"
 #include "Librarydb.hpp"
+#include "SQLiteCpp/Exception.h"
 
 #include <iostream>
 #include <cstdlib>
@@ -7,6 +8,7 @@
 #include <filesystem>
 #include <iterator>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 #include <string>
 #include <fstream>
@@ -64,7 +66,6 @@ int main(int argc, char** argv) {
     data_dir /= "library-system";
     std::filesystem::create_directory(data_dir);
 
-    db = std::make_unique<Librarydb>();
 
     if(not db_path.empty()) {
         try{
@@ -74,20 +75,26 @@ int main(int argc, char** argv) {
                 return EXIT_FAILURE;
             }
         }
-        catch(std::exception& e){
+        catch(const std::exception& e){
             std::cerr<<"Error: Database file "<<db_path<<" doesn't exist!\n";
             return EXIT_FAILURE;
         }
-        db->db_path = db_path.c_str();
     }
     else {
         std::string path = data_dir / "library.db";
         if(not std::filesystem::is_regular_file(path)){
             auto fs = std::ofstream(path.c_str());
         }
-        db->db_path = path.c_str();
+        db_path = path;
     }
-    db->init();
+
+    try {
+        db = std::make_unique<Librarydb>(db_path);
+    }
+    catch(const std::invalid_argument& e) {
+        std::cerr<<"[ERROR] Failed to initialize database: <"<<e.what()<<">"<<std::endl;
+        return EXIT_FAILURE;
+    }
 
     ap = std::make_unique<App>();
     ap->session_file = data_dir / "session.txt";

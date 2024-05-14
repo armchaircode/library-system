@@ -15,6 +15,8 @@ class App {
     private:
         void login();
         void home();
+        void adminHome();
+        void normalHome();
         void attemptRestore();
         std::unique_ptr<User> active_user;
         inline static ftxui::ScreenInteractive screen = ftxui::ScreenInteractive::Fullscreen();
