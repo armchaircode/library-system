@@ -32,16 +32,19 @@ int App::run() {
             }
         }
     }
+    catch(const Exit& e){
+        screen.Exit();
+        // cleanup
+    }
     catch (const SQLite::Exception& e) {
+        screen.Exit();
         std::cerr<<"[ERROR] Database engine error. <"<<e.what()<<">"<<std::endl;
         return EXIT_FAILURE;
     }
-    catch(Exit& e){
-        // cleanup
-    }
     catch(const std::exception& e) {
+        screen.Exit();
         std::cerr<<"[Error] Unknown error. <"<<e.what()<<">"<<std::endl;
-        return EXIT_SUCCESS;
+        return EXIT_FAILURE;
     }
     //
     return EXIT_SUCCESS;
@@ -112,7 +115,6 @@ void App::login() {
             home();
         }
     }
-
 
     bool signup_ok = false;
     std::string login_username, signup_username, signup_password, login_password, email, signup_error_message;
@@ -273,16 +275,9 @@ void App::normalHome() {
     using namespace ftxui;
     std::string username = active_user->username;
 
-//    std::vector<std::string> all_books = db->getAllBooks();
-    std::vector<std::string> all_books {
-        "Title: The alchemist",
-        "Titile: Analects",
-        "The Decline and Fall",
-        "Divine Comedy"};
-//    std::vector<std::string> borrowed = db->getBorrowed(username);
-    std::vector<std::string> borrowed {"Analects", "Divine Comedy"};
-//    std::vector<std::string> favourites = db->getFavourites(username);
-    std::vector<std::string> favourites {"The Decline and Fall", "The alchemist"};
+    BookStack all_books = db->getAllBooks();
+    BookStack borrowed = db->getBorrowed(username);
+    BookStack favourites = db->getFavourites(username);
 
     std::vector<std::string> main_selection {
         "All books",
@@ -294,13 +289,13 @@ void App::normalHome() {
     auto main_menu = Menu(&main_selection, &main_menu_selected);
 
     int favourite_book_selected = 0;
-    auto favourites_menu = Menu(&favourites, &favourite_book_selected);
+    auto favourites_menu = Menu(&favourites.second, &favourite_book_selected);
 
     int borrowed_book_selected = 0;
-    auto borrowed_menu = Menu(&borrowed, &borrowed_book_selected);
+    auto borrowed_menu = Menu(&borrowed.second, &borrowed_book_selected);
 
     int all_book_selected = 0;
-    auto all_book_menu = Menu(&all_books, &all_book_selected);
+    auto all_book_menu = Menu(&all_books.second, &all_book_selected);
 
     auto main_tab = Container::Tab({
         all_book_menu,

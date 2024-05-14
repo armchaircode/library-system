@@ -4,6 +4,7 @@
 #include "SQLiteCpp/Transaction.h"
 #include "User.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -42,20 +43,22 @@ void Librarydb::makeSchema(){
     // Default admin account
     databs->exec(R"#(
                  INSERT INTO [users] (email, username, password, type)
-                    VALUES ('root@library.me', 'Root', '1234567890', 'Admin')
+                    VALUES ('root@library.me', 'root', '1234567890', 'Admin')
                  )#");
     // Create books table
     databs->exec(R"#(
                  CREATE TABLE IF NOT EXISTS [books]
                  (
-                    [book_id] INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    [book_id] INTEGER NOT NULL PRIMARY KEY,
                     [title] VARCHAR(100) NOT NULL,
                     [author] VARCHAR(50) NOT NULL,
-                    [publisher] VARCHAR(50) NOT NULL,
-                    [pub_year] INTEGER(4) NOT NULL,
+                    [quantity] INTEGER NOT NULL,
+                    [publisher] VARCHAR(50),
+                    [pub_year] INTEGER,
                     [description] VARCHAR(200),
-                    [edtion] INTEGER(2),
-                    [rating] NUMERIC(2,1)
+                    [edtion] INTEGER,
+                    [rating] NUMERIC(2,1),
+                    [file] BLOB
                  )
                  )#");
     // Create favourites relationship table
@@ -144,18 +147,19 @@ void Librarydb::clearSession(std::string username) {
     stmnt.exec();
 }
 
-std::vector<std::string> Librarydb::getFavourites(std::string username) {
+BookStack Librarydb::getFavourites(std::string username) {
     std::string query = R"#(
-        SELECT [book_id], [title], [author],
+        SELECT [books].[book_id], [title], [author]
             FROM [favourites] JOIN [books]
                 ON favourites.book_id = books.book_id
             WHERE favourites.username = ?)#";
     SQLite::Statement stmnt{*databs, query};
     stmnt.bind(1, username);
 
-    std::vector<std::string> result;
+    BookStack result;
     while (stmnt.executeStep()) {
-        result.push_back(std::move(extractBookData(stmnt)));
+        result.first.push_back(stmnt.getColumn(0).getInt64());
+        result.second.push_back(stmnt.getColumn(1).getString() + "_" + stmnt.getColumn(2).getString());
     }
     return std::move(result);
 }
@@ -167,18 +171,20 @@ std::string extractBookData(const SQLite::Statement& stmnt) {
     return std::move(entry);
 }
 
-std::vector<std::string> Librarydb::getBorrowed(std::string username) {
+BookStack Librarydb::getBorrowed(std::string username) {
     std::string query = R"#(
-        SELECT [book_id], [title], [author],
+        SELECT [books].[book_id], [title], [author]
             FROM [borrows] JOIN [books]
                 ON borrows.book_id = books.book_id
-            WHERE borrows.username = ?)#";
+            WHERE borrows.username = ?
+    )#";
     SQLite::Statement stmnt{*databs, query};
     stmnt.bind(1, username);
 
-    std::vector<std::string> result;
+    BookStack result;
     while (stmnt.executeStep()) {
-        result.push_back(std::move(extractBookData(stmnt)));
+        result.first.push_back(stmnt.getColumn(0).getInt64());
+        result.second.push_back(stmnt.getColumn(1).getString() + "_" + stmnt.getColumn(2).getString());
     }
     return std::move(result);
 }
@@ -218,28 +224,38 @@ void Librarydb::removeUser(std::string username){
     stmnt.exec();
 }
 
-void Librarydb::addBook(Book nuser){
-    // TODO: query is not complete, cuz I'm not sure If I should add more book details or not;
+void Librarydb::addBook(const Book nuser){
     auto query = R"#(
-        INSERT INTO [Books] ()
-        VALUES ()
+        INSERT INTO [Books] (
+                    [book_id], [title], [author], [quantity], [publisher],
+                    [pub_year], [description], [edtion], [rating]
+        )
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
     )#";
     SQLite::Statement stmnt(*databs, query);
-    // TODO: add bindings from nuser object
+    stmnt.bind(1, static_cast<std::int64_t>(nuser.book_id));
+    stmnt.bind(2, nuser.title);
+    stmnt.bind(3, nuser.author);
+    stmnt.bind(4, nuser.quantity);
+    stmnt.bind(5, nuser.publisher);
+    stmnt.bind(6, nuser.pub_year);
+    stmnt.bind(7, nuser.description);
+    stmnt.bind(8, nuser.edtion);
+    stmnt.bind(9, nuser.rating);
     stmnt.exec();
 }
 
-void Librarydb::removeBook(std::string book_id) {
+void Librarydb::removeBook(std::size_t book_id) {
     auto query = R"#(
         DELETE FROM [books]
             WHERE book_id = ?
     )#";
     SQLite::Statement stmnt{*databs, query};
-    stmnt.bind(1, book_id);
+    stmnt.bind(1, static_cast<std::int64_t>(book_id));
     stmnt.exec();
 }
 
-void Librarydb::addFavourite(std::string username, std::string book_id) {
+void Librarydb::addFavourite(std::string username, std::size_t book_id) {
     auto query = R"#(
         INSERT INTO [favourites] (username, book_id)
         VALUES ( ?, ?);
@@ -247,52 +263,76 @@ void Librarydb::addFavourite(std::string username, std::string book_id) {
 
     SQLite::Statement stmnt(*databs, query);
     stmnt.bind(1, username);
-    stmnt.bind(2, book_id);
+    stmnt.bind(2, static_cast<std::int64_t>(book_id));
     stmnt.exec();
 }
 
-void Librarydb::borrow(std::string username, std::string book_id) {
+void Librarydb::removeFavourite(std::string username, std::size_t book_id) {
+    auto query = R"#(
+        DELETE FROM [favourites]
+        WHERE username = ? AND book_id = ?
+    )#";
+    SQLite::Statement stmnt(*databs, query);
+    stmnt.bind(1, username);
+    stmnt.bind(2, static_cast<std::int64_t>(book_id));
+    stmnt.exec();
+}
+
+void Librarydb::borrow(std::string username, std::size_t book_id) {
     auto query = R"#(
         INSERT INTO [borrows] (username, book_id)
         VALUES ( ?, ?);
     )#";
     SQLite::Statement stmnt(*databs, query);
     stmnt.bind(1, username);
-    stmnt.bind(2, book_id);
+    stmnt.bind(2, static_cast<int64_t>(book_id));
     stmnt.exec();
 }
 
-void Librarydb::unborrow(std::string username, std::string book_id) {
+void Librarydb::unborrow(std::string username, std::size_t book_id) {
     SQLite::Statement stmnt(*databs, "DELETE FROM [borrows] WHERE username = ? AND book_id = ?");
     stmnt.bind(1, username);
-    stmnt.bind(2, book_id);
+    stmnt.bind(2, static_cast<std::int64_t>(book_id));
     stmnt.exec();
 }
 
-std::vector<std::string> Librarydb::getAllBooks() {
-    std::vector<std::string> books;
-    SQLite::Statement stmnt(*databs, "SELECT [title] FROM [books]");
-    while (stmnt.executeStep())
-        books.push_back(stmnt.getColumn(0).getString());
+BookStack Librarydb::getAllBooks() {
+    BookStack books;
+    SQLite::Statement stmnt(*databs, "SELECT [book_id], [title], [author] FROM [books]");
+    while (stmnt.executeStep()) {
+        books.first.push_back(stmnt.getColumn(0).getInt64());
+        books.second.push_back(stmnt.getColumn(1).getString() + "_" + stmnt.getColumn(2).getString());
+    }
     return std::move(books);
 }
 
-std::string Librarydb::getBookDetail(std::string book_id) {
+Book Librarydb::getBook(std::size_t book_id) {
     auto query = R"#(
-        SELECT *
+        SELECT [book_id], [title], [author], [quantity], [publisher],
+                    [pub_year], [description], [edtion], [rating]
             FROM [books]
                 WHERE book_id = ?
     )#";
 
     SQLite::Statement stmnt(*databs, query);
-    stmnt.bind(1, book_id);
+    stmnt.bind(1, static_cast<std::int64_t>(book_id));
 
-    std::string result;
     if (stmnt.executeStep()) {
-        result += extractBookData(stmnt);
+        Book bok;
+        bok.book_id = stmnt.getColumn(0).getInt64();
+        bok.title = stmnt.getColumn(1).getString();
+        bok.author = stmnt.getColumn(2).getString();
+        bok.quantity = stmnt.getColumn(3).getInt();
+        bok.publisher = stmnt.getColumn(4).getString();
+        bok.pub_year = stmnt.getColumn(5).getInt();
+        bok.description = stmnt.getColumn(6).getString();
+        bok.edtion = stmnt.getColumn(7).getInt();
+        bok.rating = stmnt.getColumn(8).getDouble();
+
+        return std::move(bok);
     }
 
-    return std::move(result);
+    return {};
 }
 
 std::optional<User> Librarydb::authenticate(const std::string username, const std::string password) {

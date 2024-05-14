@@ -11,27 +11,36 @@
 #include <string>
 #include <vector>
 
+typedef std::pair<std::vector<std::size_t>, std::vector<std::string>> BookStack;
+
 class Librarydb{
     public:
         Librarydb(const std::string& dbfile) : db_path(dbfile) { init(); }
-        std::vector<std::string> getFavourites(std::string username);
-        std::vector<std::string> getBorrowed(std::string username);
+
+        BookStack getFavourites(std::string username);
+        BookStack getBorrowed(std::string username);
+        BookStack getAllBooks(); // returns book_id of all books
+        Book getBook(std::size_t book_id);
+
+
         std::vector<std::string> searchBook(std::string val);
         SQLite::Statement searchUser(std::string val);
-        void addUser(User nuser, std::string password);
-        void removeUser(std::string username);
-        void addBook(Book nbook);
-        void removeBook(std::string book_id);
-        void addFavourite(std::string username, std::string book_id);
-        void borrow(std::string username, std::string book_id);
-        void unborrow(std::string username, std::string book_id);
+
+        void addUser(const User nuser, const std::string password);
+        void removeUser(const std::string username);
+
+        void addBook(const Book nbook);
+        void removeBook(std::size_t book_id);
+
+        void addFavourite(std::string username, std::size_t book_id);
+        void removeFavourite(std::string username, std::size_t book_id);
+
+        void borrow(std::string username, std::size_t book_id);
+        void unborrow(std::string username, std::size_t book_id);
 
         std::optional<User> restoreSession(std::size_t session);
         void newSession(std::string username, std::size_t session);
         void clearSession(std::string username);
-
-        std::vector<std::string> getAllBooks(); // returns isbns of all books
-        std::string getBookDetail(std::string book_id);
 
         std::optional<User> authenticate(const std::string username, const std::string password);
 
