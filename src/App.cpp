@@ -1,19 +1,21 @@
 #include "App.hpp"
 #include "Librarydb.hpp"
-
+#include "SQLiteCpp/Statement.h"
 #include "User.hpp"
+
 #include "ftxui/component/screen_interactive.hpp"
 #include "ftxui/component/component.hpp"
+#include "ftxui/dom/elements.hpp"
 
 #include <chrono>
+#include <cstddef>
 #include <cstdlib>
+#include <deque>
 #include <fstream>
-#include <ftxui/dom/elements.hpp>
-#include <future>
+#include <functional>
 #include <memory>
 #include <exception>
 #include <thread>
-#include <utility>
 #include <vector>
 
 class Exit : public std::exception {};
@@ -36,15 +38,28 @@ int App::run() {
     return EXIT_SUCCESS;
 }
 
+std::size_t readSession(const std::string& filename) {
+    std::size_t session;
+    std::ifstream ifs(filename);
+    ifs>>session;
+    ifs.close();
+    return session;
+}
+
+void App::writeSessionFile(const std::size_t session) {
+    auto ofs = std::ofstream(session_file);
+    ofs<<session;
+    ofs.close();
+}
+
 void App::attemptRestore() {
-    //TODO: attempt to restore the session
-    auto usr = db->restoreSession(session);
-    if(usr.username.empty()){
+    auto usr = db->restoreSession(readSession(session_file));
+    if( !usr){
         // restore failed, session expired
         return;
     }
     else{
-        active_user = std::make_unique<User>(usr);
+        active_user = std::make_unique<User>(usr.value());
     }
 }
 
@@ -57,25 +72,38 @@ void flip(bool& flag) {
     th.detach();
 }
 
-void App::writeSession() {
+void App::saveSession() {
     // Shouldn't be called when there is no active user
     if (not active_user)
         throw std::exception();
-    // TODO: Derive session informatin from active_user and write it to session_file
-    auto ofs = std::ofstream(session_file.c_str());
-    // do the actual writing
-    ofs.close();
+
+    std::size_t session = std::hash<std::string>{}(active_user->username);
+    writeSessionFile(session);
+    db->newSession(active_user->username, session);
+}
+
+void App::clearSession() {
+    clearSessionFile();
+    db->clearSession(active_user->username);
+}
+
+void App::clearSessionFile() {
+    std::ofstream ofs(session_file, std::ios::trunc);
 }
 
 void App::login() {
     using namespace ftxui;
 
-    if(not session.empty()) {
+    if(newSession) {
+        clearSessionFile();
+    }
+    else {
         attemptRestore();
+        if (active_user) {
+            home();
+        }
     }
-    if (active_user) {
-        home();
-    }
+
 
     bool signup_ok = false;
     std::string login_username, signup_username, signup_password, login_password, email, signup_error_message;
@@ -115,15 +143,15 @@ void App::login() {
         auto usr = User{email, signup_username, UserClass::NORMAL};
         db->addUser(usr, signup_password);
         // signed up
-        active_user = std::make_unique<User>(usr);
         signup_password.clear();
         signup_username.clear();
         email.clear();
+        active_user = std::make_unique<User>(usr);
+        saveSession();
         home();
     };
 
     auto login_action = [&] {
-        //read button data and set active_user
         auto usr = db->authenticate(login_username, login_password);
         if (not usr) {
             login_username.clear();
@@ -135,6 +163,7 @@ void App::login() {
             login_password.clear();
             login_username.clear();
             active_user = std::make_unique<User>(usr.value());
+            saveSession();
             home();
         }
     };
@@ -196,20 +225,60 @@ void App::login() {
 }
 
 void App::home() {
-    // TODO: home screen implemntation
+    using namespace ftxui;
     std::string username = active_user->username;
-    auto home_screen = ftxui::Container::Vertical({
-        ftxui::Button("Logout", [&]{
+
+//    std::vector<std::string> all_books = db->getAllBooks();
+    std::vector<std::string> all_books {
+        "Title: The alchemist",
+        "Titile: Analects",
+        "The Decline and Fall",
+        "Divine Comedy"};
+//    std::vector<std::string> borrowed = db->getBorrowed(username);
+    std::vector<std::string> borrowed {"Analects", "Divine Comedy"};
+//    std::vector<std::string> favourites = db->getFavourites(username);
+    std::vector<std::string> favourites {"The Decline and Fall", "The alchemist"};
+
+    std::vector<std::string> main_selection {
+        "All books",
+        "Borrowed",
+        "Favourites"
+    };
+
+    int main_menu_selected = 0;
+    auto main_menu = Menu(&main_selection, &main_menu_selected);
+
+    int favourite_book_selected = 0;
+    auto favourites_menu = Menu(&favourites, &favourite_book_selected);
+
+    int borrowed_book_selected = 0;
+    auto borrowed_menu = Menu(&borrowed, &borrowed_book_selected);
+
+    int all_book_selected = 0;
+    auto all_book_menu = Menu(&all_books, &all_book_selected);
+
+    auto main_tab = Container::Tab({
+        all_book_menu,
+        borrowed_menu,
+        favourites_menu}, &main_menu_selected);
+
+    auto home_screen = Container::Vertical({
+        Container::Horizontal({
+            main_menu,
+            main_tab
+        }),
+        Button("Logout", [&]{
+            clearSession();
             active_user = nullptr;
             screen.Exit();
-        }, ftxui::ButtonOption::Ascii())
+        }, ButtonOption::Ascii()),
+        Button("Quit", [&] { throw Exit(); }, ButtonOption::Ascii())
     });
 
-    auto home_renderer = ftxui::Renderer(home_screen, [&] {
+    auto home_renderer = Renderer(home_screen, [&] {
         return ftxui::vbox(
-            ftxui::text(std::string("Welcome home: ") + username),
             home_screen->Render()
         );
     });
-    screen.Loop(home_renderer);
+    screen.Loop(home_screen);
 }

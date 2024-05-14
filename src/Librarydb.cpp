@@ -1,13 +1,21 @@
 #include "Librarydb.hpp"
 #include "SQLiteCpp/Exception.h"
+#include "SQLiteCpp/Statement.h"
 #include "SQLiteCpp/Transaction.h"
 #include "User.hpp"
 
+#include <algorithm>
+#include <cstdint>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 #include <iostream>
 #include <exception>
+
+
+// forward declarations
+std::string extractBookData(const SQLite::Statement& stmnt);
 
 void Librarydb::init() {
     if(db_path.empty()) {
@@ -78,6 +86,15 @@ void Librarydb::makeSchema(){
                         ON DELETE CASCADE ON UPDATE NO ACTION
                  )
                  )#");
+
+    databs->exec(R"#(
+                CREATE TABLE IF NOT EXISTS [sessions] (
+                    [username] VARCHAR(50) NOT NULL PRIMARY KEY,
+                    [session] INTEGER UNIQUE,
+                    FOREIGN KEY (username) REFERENCES [users] (username)
+                        ON DELETE CASCADE ON UPDATE NO ACTION
+                 )
+                 )#");
     trxn.commit();
     }
     catch(SQLite::Exception& e) {
@@ -87,27 +104,95 @@ void Librarydb::makeSchema(){
     }
 }
 
-User Librarydb::restoreSession(std::string session){
-    // TODO: query database for session information
-    return User{};
+std::optional<User> Librarydb::restoreSession(std::size_t session){
+    auto query = R"#(
+        SELECT [users].[username], [email], [type]
+            FROM [users] JOIN [sessions]
+                ON users.username = sessions.username
+            WHERE sessions.session = ?
+    )#";
+    SQLite::Statement stmnt{*databs, query};
+    stmnt.bind(1, static_cast<int64_t>(session));
+    if(stmnt.executeStep()) {
+        User usr;
+        usr.username = stmnt.getColumn(0).getString();
+        usr.email = stmnt.getColumn(1).getString();
+        usr.type = (stmnt.getColumn(2).getString() == "Regular" ? UserClass::NORMAL : UserClass::ADMIN);
+        return usr;
+    }
+    else {
+        return {};
+    }
 }
 
-SQLite::Statement Librarydb::getFavourites(std::string username) {
-    std::string query = "";
-    //query += username;
-    //TODO: query favourites
-    return SQLite::Statement{*databs, query};
-}
-SQLite::Statement Librarydb::getBorrowed(std::string username) {
-    std::string query = "";
-    //TODO: query borrowed
-    return SQLite::Statement{*databs, query};
+void Librarydb::newSession(std::string username, std::size_t session) {
+    clearSession(username);
+    auto query = R"#(
+        INSERT INTO [sessions] (username, session)
+        VALUES (?, ?)
+    )#";
+    SQLite::Statement stmnt(*databs, query);
+    stmnt.bind(1, username);
+    stmnt.bind(2, static_cast<int64_t>(session));
+    stmnt.exec();
 }
 
-SQLite::Statement Librarydb::searchBook(std::string val) {
-    // TODO: prepare query
-    std::string query = "";
-    return SQLite::Statement{*databs, query};
+void Librarydb::clearSession(std::string username) {
+    auto query = R"#(
+        DELETE FROM [sessions]
+        WHERE username = ?
+    )#";
+    SQLite::Statement stmnt(*databs, query);
+    stmnt.bind(1, username);
+    stmnt.exec();
+}
+
+std::vector<std::string> Librarydb::getFavourites(std::string username) {
+    std::string query = R"#(
+        SELECT [book_id], [title], [author],
+            FROM [favourites] JOIN [books]
+                ON favourites.book_id = books.book_id
+            WHERE favourites.username = ?)#";
+    SQLite::Statement stmnt{*databs, query};
+    stmnt.bind(1, username);
+
+    std::vector<std::string> result;
+    while (stmnt.executeStep()) {
+        result.push_back(std::move(extractBookData(stmnt)));
+    }
+    return std::move(result);
+}
+
+std::string extractBookData(const SQLite::Statement& stmnt) {
+    std::string entry;
+    entry += "Title: " + stmnt.getColumn(1).getString();
+    entry += "Author: " + stmnt.getColumn(2).getString();
+    return std::move(entry);
+}
+
+std::vector<std::string> Librarydb::getBorrowed(std::string username) {
+    std::string query = R"#(
+        SELECT [book_id], [title], [author],
+            FROM [borrows] JOIN [books]
+                ON borrows.book_id = books.book_id
+            WHERE borrows.username = ?)#";
+    SQLite::Statement stmnt{*databs, query};
+    stmnt.bind(1, username);
+
+    std::vector<std::string> result;
+    while (stmnt.executeStep()) {
+        result.push_back(std::move(extractBookData(stmnt)));
+    }
+    return std::move(result);
+}
+
+std::vector<std::string> Librarydb::searchBook(std::string val) {
+    std::string query = R"#(
+        SELECT [book_id], [title], [author]
+            FROM 
+    )#";
+    std::vector<std::string> result;
+    return std::move(result);
 }
 
 SQLite::Statement Librarydb::searchUser(std::string val) {
@@ -148,7 +233,13 @@ void Librarydb::addBook(Book nuser){
 }
 
 void Librarydb::removeBook(std::string book_id) {
-    // TODO: remove the book
+    auto query = R"#(
+        DELETE FROM [books]
+            WHERE book_id = ?
+    )#";
+    SQLite::Statement stmnt{*databs, query};
+    stmnt.bind(1, book_id);
+    stmnt.exec();
 }
 
 void Librarydb::addFavourite(std::string username, std::string book_id) {
@@ -156,6 +247,7 @@ void Librarydb::addFavourite(std::string username, std::string book_id) {
         INSERT INTO [favourites] (username, book_id)
         VALUES ( ?, ?);
     )#";
+
     SQLite::Statement stmnt(*databs, query);
     stmnt.bind(1, username);
     stmnt.bind(2, book_id);
@@ -182,19 +274,28 @@ void Librarydb::unborrow(std::string username, std::string book_id) {
 
 std::vector<std::string> Librarydb::getAllBooks() {
     std::vector<std::string> books;
-    SQLite::Statement stmnt(*databs, "SELECT [book_id] FROM [books]");
+    SQLite::Statement stmnt(*databs, "SELECT [title] FROM [books]");
     while (stmnt.executeStep())
         books.push_back(stmnt.getColumn(0).getString());
     return std::move(books);
 }
 
-Book Librarydb::getBook(std::string book_id) {
-    Book bk{};
-    SQLite::Statement stmnt(*databs, "SELECT * FROM [books] WHERE isbn = ?");
+std::string Librarydb::getBookDetail(std::string book_id) {
+    auto query = R"#(
+        SELECT *
+            FROM [books]
+                WHERE book_id = ?
+    )#";
+
+    SQLite::Statement stmnt(*databs, query);
     stmnt.bind(1, book_id);
-    stmnt.executeStep();
-    //TODO: Copy book details from columns to Book object
-    return std::move(bk);
+
+    std::string result;
+    if (stmnt.executeStep()) {
+        result += extractBookData(stmnt);
+    }
+
+    return std::move(result);
 }
 
 std::optional<User> Librarydb::authenticate(const std::string username, const std::string password) {

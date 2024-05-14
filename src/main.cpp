@@ -91,15 +91,8 @@ int main(int argc, char** argv) {
 
     ap = std::make_unique<App>();
     ap->session_file = data_dir / "session.txt";
-    if(!new_session){
-        auto session_path = data_dir / "session.txt";
-        if(std::filesystem::is_regular_file(session_path)){
-            std::string session;
-            auto ifs = std::ifstream(session_path.c_str());
-            //TODO: session file contents may vary. Proper reading is requisite.
-            ifs>>session;
-            ap->session = session;
-        }
+    if(new_session){
+        ap->newSession = true;
     }
 
     return ap->run();

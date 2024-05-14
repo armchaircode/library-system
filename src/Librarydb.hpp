@@ -5,6 +5,7 @@
 #include "User.hpp"
 #include "Book.hpp"
 
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
@@ -16,21 +17,24 @@ class Librarydb{
             return *databs;
         }
         void init();
-        SQLite::Statement getFavourites(std::string username);
-        SQLite::Statement getBorrowed(std::string username);
-        SQLite::Statement searchBook(std::string val);
+        std::vector<std::string> getFavourites(std::string username);
+        std::vector<std::string> getBorrowed(std::string username);
+        std::vector<std::string> searchBook(std::string val);
         SQLite::Statement searchUser(std::string val);
         void addUser(User nuser, std::string password);
         void removeUser(std::string username);
         void addBook(Book nbook);
-        void removeBook(std::string isbn);
-        void addFavourite(std::string username, std::string isbn);
-        void borrow(std::string username, std::string isbn);
-        void unborrow(std::string username, std::string isbn);
-        User restoreSession(std::string session);
+        void removeBook(std::string book_id);
+        void addFavourite(std::string username, std::string book_id);
+        void borrow(std::string username, std::string book_id);
+        void unborrow(std::string username, std::string book_id);
+
+        std::optional<User> restoreSession(std::size_t session);
+        void newSession(std::string username, std::size_t session);
+        void clearSession(std::string username);
 
         std::vector<std::string> getAllBooks(); // returns isbns of all books
-        Book getBook(std::string isbn);
+        std::string getBookDetail(std::string book_id);
 
         std::optional<User> authenticate(const std::string username, const std::string password);
 

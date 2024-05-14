@@ -10,7 +10,7 @@
 class App {
     public:
         int run();
-        std::string session;
+        bool newSession = false;
         std::filesystem::path session_file;
     private:
         void login();
@@ -18,7 +18,10 @@ class App {
         void attemptRestore();
         std::unique_ptr<User> active_user;
         inline static ftxui::ScreenInteractive screen = ftxui::ScreenInteractive::Fullscreen();
-        void writeSession();
+        void clearSession();
+        void clearSessionFile();
+        void writeSessionFile(const std::size_t session);
+        void saveSession();
 
         std::vector<std::thread> dumped_threads;
 };
