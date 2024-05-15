@@ -1,4 +1,5 @@
 #include "App.hpp"
+#include "Book.hpp"
 #include "Librarydb.hpp"
 #include "SQLiteCpp/Exception.h"
 #include "User.hpp"
@@ -11,10 +12,13 @@
 #include <cstddef>
 #include <cstdlib>
 #include <fstream>
+#include <ftxui/dom/node.hpp>
+#include <ftxui/screen/string.hpp>
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <exception>
+#include <string>
 #include <sys/types.h>
 #include <thread>
 #include <vector>
@@ -282,25 +286,67 @@ void App::normalHome() {
     std::vector<std::string> main_selection {
         "All books",
         "Borrowed",
-        "Favourites"
+        "Favourites",
+        "My Account"
     };
 
     int main_menu_selected = 0;
     auto main_menu = Menu(&main_selection, &main_menu_selected);
 
+
     int favourite_book_selected = 0;
-    auto favourites_menu = Menu(&favourites.second, &favourite_book_selected);
+    auto favourites_menu = Container::Vertical({}, &favourite_book_selected);
+    if (favourites.empty()) {
+        favourites_menu->Add(
+            Renderer([]{
+                return text("You haven't borrowed any book yet!"); })
+        );
+    }
+    else {
+        for(int i = 0; i<favourites.size(); ++i){
+            favourites_menu->Add(MenuEntry(favourites[i].author + "_" + favourites[i].title));
+        }
+    }
 
     int borrowed_book_selected = 0;
-    auto borrowed_menu = Menu(&borrowed.second, &borrowed_book_selected);
+    auto borrowed_menu = Container::Tab({}, &borrowed_book_selected);
+    if (borrowed.empty()) {
+        borrowed_menu->Add(
+            Renderer([]{
+                return text("You haven't borrowed any book yet!"); })
+        );
+    }
+    else {
+        for(int i = 0; i<borrowed.size(); ++i) {
+            borrowed_menu->Add(MenuEntry(borrowed[i].author + "_" + borrowed[i].title));
+        }
+    }
 
     int all_book_selected = 0;
-    auto all_book_menu = Menu(&all_books.second, &all_book_selected);
+    auto all_book_menu = Container::Vertical({}, &all_book_selected);
+    if (all_books.empty()) {
+        all_book_menu->Add(
+            Renderer([]{
+                return text("No books yet!"); })
+        );
+    }
+    else {
+        for(int i = 0; i<all_books.size(); ++i){
+            all_book_menu->Add(MenuEntry(all_books[i].author + "_" + all_books[i].title));
+        }
+    }
 
     auto main_tab = Container::Tab({
-        all_book_menu,
-        borrowed_menu,
-        favourites_menu}, &main_menu_selected);
+        Container::Horizontal({
+            all_book_menu,
+            bookDetail(all_books, all_book_selected)}),
+        Container::Horizontal({
+            borrowed_menu,
+            bookDetail(borrowed, borrowed_book_selected)}),
+        Container::Horizontal({
+            favourites_menu,
+            bookDetail(favourites, favourite_book_selected)})
+        }, &main_menu_selected);
 
     auto home_screen = Container::Vertical({
         Container::Horizontal({
@@ -312,8 +358,8 @@ void App::normalHome() {
             active_user = nullptr;
             screen.Exit();
         }, ButtonOption::Ascii()),
-        Button("Quit", [&] { throw Exit(); }, ButtonOption::Ascii())
-    });
+       Button("Quit", [&] { throw Exit(); }, ButtonOption::Ascii())
+    }) | border;
 
     auto home_renderer = Renderer(home_screen, [&] {
         return ftxui::vbox(
@@ -330,4 +376,45 @@ void App::home() {
     else {
         adminHome();
     }
+}
+
+ftxui::Component App::bookDetail(const BookStack& books, const int& selector) {
+    using namespace ftxui;
+    if (books.empty()) {
+        return Container::Vertical({
+            Renderer([] {
+                return text("Nothing to show!");
+            })
+        });
+    }
+
+    return Container::Vertical({
+        Renderer([&] {
+            return text("Titile: " + books[selector].title);
+        }),
+        Renderer([&] {
+            return text("Author: " + books[selector].author);
+        }),
+        Renderer([&] {
+            return text("Publisher: " + books[selector].publisher);
+        }) | Maybe([&] { return ! books[selector].publisher.empty(); }),
+        Renderer([&] {
+                return text("Publicatin Year: " + std::to_string(books[selector].pub_year));
+        }) | Maybe([&] { return books[selector].pub_year > 0; }),
+        Renderer([&] {
+            return text("Edition: " + std::to_string(books[selector].edition));
+        }) | Maybe([&] { return books[selector].edition > 0; }),
+        Renderer([&] {
+                return text("Rating: " + std::to_string(books[selector].rating));
+            }) | Maybe([&] { return books[selector].rating > 0; }),
+        Renderer([&] {
+            return text("Availablity: " + std::string(books[selector].quantity > 0 ? "Available" : "Not Available"));
+        }),
+        Renderer([&] {
+            return vbox({
+                text("Description") | bold,
+                paragraph(books[selector].description)
+            });
+        }) | Maybe([&] { return ! books[selector].description.empty(); })
+    });
 }

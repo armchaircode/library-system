@@ -11,8 +11,6 @@
 #include <string>
 #include <vector>
 
-typedef std::pair<std::vector<std::size_t>, std::vector<std::string>> BookStack;
-
 class Librarydb{
     public:
         Librarydb(const std::string& dbfile) : db_path(dbfile) { init(); }
@@ -52,6 +50,7 @@ class Librarydb{
         std::string db_path;
         std::unique_ptr<SQLite::Database> databs;
         void makeSchema();
+        std::optional<Book> extractBookInfo(const SQLite::Statement& stmnt);
 };
 
 inline std::unique_ptr<Librarydb> db;

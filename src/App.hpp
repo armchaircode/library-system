@@ -1,7 +1,9 @@
 #pragma once
 
+#include "Book.hpp"
 #include "User.hpp"
 
+#include <ftxui/component/component.hpp>
 #include <ftxui/component/screen_interactive.hpp>
 #include <memory>
 #include <filesystem>
@@ -24,8 +26,7 @@ class App {
         void clearSessionFile();
         void writeSessionFile(const std::size_t session);
         void saveSession();
-
-        std::vector<std::thread> dumped_threads;
+        ftxui::Component bookDetail(const BookStack& books, const int& selector);
 };
 
 inline std::unique_ptr<App> ap;

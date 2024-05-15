@@ -14,7 +14,6 @@
 
 
 // forward declarations
-std::string extractBookData(const SQLite::Statement& stmnt);
 
 void Librarydb::init() {
     if(db_path.empty()) {
@@ -56,7 +55,7 @@ void Librarydb::makeSchema(){
                     [publisher] VARCHAR(50),
                     [pub_year] INTEGER,
                     [description] VARCHAR(200),
-                    [edtion] INTEGER,
+                    [edition] INTEGER,
                     [rating] NUMERIC(2,1),
                     [file] BLOB
                  )
@@ -149,31 +148,25 @@ void Librarydb::clearSession(std::string username) {
 
 BookStack Librarydb::getFavourites(std::string username) {
     std::string query = R"#(
-        SELECT [books].[book_id], [title], [author]
+        SELECT [books].[book_id], [title], [author], [quantity], [publisher],
+                [pub_year], [description], [edition], [rating]
             FROM [favourites] JOIN [books]
                 ON favourites.book_id = books.book_id
             WHERE favourites.username = ?)#";
     SQLite::Statement stmnt{*databs, query};
     stmnt.bind(1, username);
 
-    BookStack result;
+    BookStack books;
     while (stmnt.executeStep()) {
-        result.first.push_back(stmnt.getColumn(0).getInt64());
-        result.second.push_back(stmnt.getColumn(1).getString() + "_" + stmnt.getColumn(2).getString());
+        books.push_back(extractBookInfo(stmnt).value());
     }
-    return std::move(result);
-}
-
-std::string extractBookData(const SQLite::Statement& stmnt) {
-    std::string entry;
-    entry += "Title: " + stmnt.getColumn(1).getString();
-    entry += "Author: " + stmnt.getColumn(2).getString();
-    return std::move(entry);
+    return std::move(books);
 }
 
 BookStack Librarydb::getBorrowed(std::string username) {
     std::string query = R"#(
-        SELECT [books].[book_id], [title], [author]
+        SELECT [books].[book_id], [title], [author], [quantity], [publisher],
+                [pub_year], [description], [edition], [rating]
             FROM [borrows] JOIN [books]
                 ON borrows.book_id = books.book_id
             WHERE borrows.username = ?
@@ -181,12 +174,11 @@ BookStack Librarydb::getBorrowed(std::string username) {
     SQLite::Statement stmnt{*databs, query};
     stmnt.bind(1, username);
 
-    BookStack result;
+    BookStack books;
     while (stmnt.executeStep()) {
-        result.first.push_back(stmnt.getColumn(0).getInt64());
-        result.second.push_back(stmnt.getColumn(1).getString() + "_" + stmnt.getColumn(2).getString());
+        books.push_back(extractBookInfo(stmnt).value());
     }
-    return std::move(result);
+    return std::move(books);
 }
 
 std::vector<std::string> Librarydb::searchBook(std::string val) {
@@ -228,7 +220,7 @@ void Librarydb::addBook(const Book nuser){
     auto query = R"#(
         INSERT INTO [Books] (
                     [book_id], [title], [author], [quantity], [publisher],
-                    [pub_year], [description], [edtion], [rating]
+                    [pub_year], [description], [edition], [rating]
         )
         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
     )#";
@@ -240,7 +232,7 @@ void Librarydb::addBook(const Book nuser){
     stmnt.bind(5, nuser.publisher);
     stmnt.bind(6, nuser.pub_year);
     stmnt.bind(7, nuser.description);
-    stmnt.bind(8, nuser.edtion);
+    stmnt.bind(8, nuser.edition);
     stmnt.bind(9, nuser.rating);
     stmnt.exec();
 }
@@ -298,10 +290,14 @@ void Librarydb::unborrow(std::string username, std::size_t book_id) {
 
 BookStack Librarydb::getAllBooks() {
     BookStack books;
-    SQLite::Statement stmnt(*databs, "SELECT [book_id], [title], [author] FROM [books]");
+    auto query = R"#(
+        SELECT [book_id], [title], [author], [quantity], [publisher],
+            [pub_year], [description], [edition], [rating]
+        FROM [books]
+    )#";
+    SQLite::Statement stmnt(*databs, query);
     while (stmnt.executeStep()) {
-        books.first.push_back(stmnt.getColumn(0).getInt64());
-        books.second.push_back(stmnt.getColumn(1).getString() + "_" + stmnt.getColumn(2).getString());
+        books.push_back(extractBookInfo(stmnt).value());
     }
     return std::move(books);
 }
@@ -309,7 +305,7 @@ BookStack Librarydb::getAllBooks() {
 Book Librarydb::getBook(std::size_t book_id) {
     auto query = R"#(
         SELECT [book_id], [title], [author], [quantity], [publisher],
-                    [pub_year], [description], [edtion], [rating]
+                    [pub_year], [description], [edition], [rating]
             FROM [books]
                 WHERE book_id = ?
     )#";
@@ -318,18 +314,7 @@ Book Librarydb::getBook(std::size_t book_id) {
     stmnt.bind(1, static_cast<std::int64_t>(book_id));
 
     if (stmnt.executeStep()) {
-        Book bok;
-        bok.book_id = stmnt.getColumn(0).getInt64();
-        bok.title = stmnt.getColumn(1).getString();
-        bok.author = stmnt.getColumn(2).getString();
-        bok.quantity = stmnt.getColumn(3).getInt();
-        bok.publisher = stmnt.getColumn(4).getString();
-        bok.pub_year = stmnt.getColumn(5).getInt();
-        bok.description = stmnt.getColumn(6).getString();
-        bok.edtion = stmnt.getColumn(7).getInt();
-        bok.rating = stmnt.getColumn(8).getDouble();
-
-        return std::move(bok);
+        return extractBookInfo(stmnt).value();
     }
 
     return {};
@@ -362,4 +347,38 @@ bool Librarydb::emailIsUsed(const std::string& email) {
     SQLite::Statement stmnt(*databs, "SELECT [username] FROM [users] WHERE email = ?");
     stmnt.bind(1, email);
     return stmnt.executeStep();
+}
+
+std::optional<Book> Librarydb::extractBookInfo(const SQLite::Statement& stmnt) {
+    if(not stmnt.hasRow()) {
+        return {};
+    }
+    /*
+            CREATE TABLE IF NOT EXISTS [books]
+                 (
+                    [book_id] INTEGER NOT NULL PRIMARY KEY,
+                    [title] VARCHAR(100) NOT NULL,
+                    [author] VARCHAR(50) NOT NULL,
+                    [quantity] INTEGER NOT NULL,
+                    [publisher] VARCHAR(50),
+                    [pub_year] INTEGER,
+                    [description] VARCHAR(200),
+                    [edition] INTEGER,
+                    [rating] NUMERIC(2,1),
+                    [file] BLOB
+                )
+    */
+
+    Book bok;
+     bok.book_id = stmnt.getColumn(0).getInt64();
+    bok.title = stmnt.getColumn(1).getString();
+    bok.author = stmnt.getColumn(2).getString();
+    bok.quantity = stmnt.getColumn(3).getInt();
+    bok.publisher = stmnt.getColumn(4).isNull() ? "" : stmnt.getColumn(4).getString();
+    bok.pub_year = stmnt.getColumn(5).isNull() ? -1 : stmnt.getColumn(5).getInt();
+    bok.description = stmnt.getColumn(6).isNull() ? "" : stmnt.getColumn(6).getString();
+    bok.edition = stmnt.getColumn(7).isNull() ? -1 : stmnt.getColumn(7).getInt();
+    bok.rating = stmnt.getColumn(8).isNull() ? -1.0 : stmnt.getColumn(8).getDouble();
+
+    return std::move(bok);
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 struct Book {
     std::size_t book_id;
@@ -10,6 +11,8 @@ struct Book {
     std::string publisher;
     int pub_year;
     std::string description;
-    int edtion;
+    int edition;
     double rating;
 };
+
+typedef std::vector<Book> BookStack;
