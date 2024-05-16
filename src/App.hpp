@@ -15,6 +15,7 @@ class App {
         bool newSession = false;
         std::filesystem::path session_file;
     private:
+        int entryMenuSize = 70;
         void login();
         void home();
         void adminHome();
@@ -27,6 +28,7 @@ class App {
         void writeSessionFile(const std::size_t session);
         void saveSession();
         ftxui::Component bookDetail(const BookStack& books, const int& selector);
+        bool isSearchResult(const Book& book, const std::string& searchString);
 };
 
 inline std::unique_ptr<App> ap;

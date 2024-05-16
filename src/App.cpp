@@ -275,6 +275,7 @@ void App::normalHome() {
     BookStack borrowed = db->getBorrowed(username);
     BookStack favourites = db->getFavourites(username);
 
+    std::string searchString;
     std::vector<std::string> main_selection {
         "All books",
         "Borrowed",
@@ -282,9 +283,11 @@ void App::normalHome() {
         "My Account"
     };
 
+    // Main manu selector
     int main_menu_selected = 0;
     auto main_menu = Menu(&main_selection, &main_menu_selected);
 
+    // All books main menu item
     int all_book_selected = 0;
     auto all_book_menu = Container::Vertical({}, &all_book_selected);
     if (all_books.empty()) {
@@ -300,11 +303,16 @@ void App::normalHome() {
     }
     else {
         for(int i = 0; i<all_books.size(); ++i){
-            all_book_menu->Add(MenuEntry(all_books[i].author + "_" + all_books[i].title));
+            all_book_menu->Add(
+                MenuEntry(all_books[i].author + "_" + all_books[i].title) | Maybe([&, i] {
+                    return searchString.empty() || isSearchResult(all_books[i], searchString);
+                })
+            );
         }
     }
-    all_book_menu |= size(ftxui::WIDTH, ftxui::EQUAL, 60);
+    all_book_menu |= size(ftxui::WIDTH, ftxui::EQUAL, entryMenuSize);
 
+    // Favourite books main menu item
     int favourite_book_selected = 0;
     auto favourites_menu = Container::Vertical({}, &favourite_book_selected);
     if (favourites.empty()) {
@@ -319,11 +327,16 @@ void App::normalHome() {
     }
     else {
         for(int i = 0; i<favourites.size(); ++i){
-            favourites_menu->Add(MenuEntry(favourites[i].author + "_" + favourites[i].title));
+            favourites_menu->Add(
+                MenuEntry(favourites[i].author + "_" + favourites[i].title) | Maybe([&, i] {
+                    return searchString.empty() || isSearchResult(favourites[i], searchString);
+                })
+            );
         }
     }
-   favourites_menu |= size(ftxui::WIDTH, ftxui::EQUAL, 60);
+   favourites_menu |= size(ftxui::WIDTH, ftxui::EQUAL, entryMenuSize);
 
+    // borrowed books main manu item
     int borrowed_book_selected = 0;
     auto borrowed_menu = Container::Vertical({}, &borrowed_book_selected);
     if (borrowed.empty()) {
@@ -338,30 +351,64 @@ void App::normalHome() {
     }
     else {
         for(int i = 0; i<borrowed.size(); ++i) {
-            borrowed_menu->Add(MenuEntry(borrowed[i].author + "_" + borrowed[i].title));
+            borrowed_menu->Add(
+                MenuEntry(borrowed[i].author + "_" + borrowed[i].title) | Maybe([&, i] {
+                    return searchString.empty() || isSearchResult(borrowed[i], searchString);
+                })
+            );
         }
     }
-    borrowed_menu |= size(ftxui::WIDTH, ftxui::EQUAL, 60);
+    borrowed_menu |= size(ftxui::WIDTH, ftxui::EQUAL, entryMenuSize);
 
+    // search Area container creator
+    auto searchArea = [&searchString] {
+        return Container::Horizontal({
+            Renderer([] { return filler(); }),
+            Renderer([] { return text("Search: "); }),
+            Input(&searchString, "  here  ") | size(ftxui::WIDTH, ftxui::EQUAL, 10)
+        });
+    };
+
+    // Main entries and the selected entry info containers holder
     auto main_tab = Container::Tab({
         Container::Horizontal({
-            all_book_menu,
+            Container::Vertical({
+                searchArea(),
+                Renderer([]{ return separator(); }),
+                all_book_menu,
+            }),
             Renderer([] { return separator(); }),
             bookDetail(all_books, all_book_selected)}),
         Container::Horizontal({
-            borrowed_menu,
+            Container::Vertical({
+                searchArea(),
+                Renderer([]{ return separator(); }),
+                borrowed_menu,
+            }),
             Renderer([] { return separator(); }),
             bookDetail(borrowed, borrowed_book_selected)}),
         Container::Horizontal({
-            favourites_menu,
+            Container::Vertical({
+                searchArea(),
+                Renderer([]{ return separator(); }),
+                favourites_menu,
+            }),
             Renderer([] { return separator(); }),
             bookDetail(favourites, favourite_book_selected)}),
         Container::Vertical({
-            Button("Change passoword", [] {}, ButtonOption::Ascii())
+            Button("Change passoword", []{}, ButtonOption::Ascii())
         })
     }, &main_menu_selected);
 
+    // Main menu on left most side
     auto main_menu_container = Container::Vertical({
+        Renderer([&username]{
+            return hbox({
+                filler(),
+                text(username) | color(Color::Green),
+                filler()
+            });
+        }),
         main_menu,
         Renderer([] { return filler(); }),
         Renderer([] { return separator(); }),
@@ -375,6 +422,7 @@ void App::normalHome() {
         })
     });
 
+    // Outer most container
     auto home_screen = Container::Horizontal({
         main_menu_container,
         Renderer([] { return separator(); }),
@@ -419,7 +467,7 @@ ftxui::Component App::bookDetail(const BookStack& books, const int& selector) {
             return text("Edition: " + std::to_string(books[selector].edition));
         }) | Maybe([&] { return books[selector].edition > 0; }),
         Renderer([&] {
-                return text("Rating: " + std::to_string(books[selector].rating));
+                return text("Rating: " + std::to_string(books[selector].rating).substr(0,3));
             }) | Maybe([&] { return books[selector].rating > 0; }),
         Renderer([&] {
             return text("Availablity: " + std::string(books[selector].quantity > 0 ? "Available" : "Not Available"));
@@ -431,4 +479,10 @@ ftxui::Component App::bookDetail(const BookStack& books, const int& selector) {
             });
         }) | Maybe([&] { return ! books[selector].description.empty(); })
     });
+}
+
+bool App::isSearchResult(const Book& book, const std::string& searchString) {
+    //search the author and title for searchString
+    //TODO: Really do the searching that this dummy comparision
+    return searchString[0] == book.title[0];
 }
