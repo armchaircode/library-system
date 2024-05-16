@@ -20,6 +20,7 @@
 #include <string>
 #include <sys/types.h>
 #include <thread>
+#include <regex>
 #include <vector>
 
 class Exit : public std::exception {};
@@ -482,7 +483,6 @@ ftxui::Component App::bookDetail(const BookStack& books, const int& selector) {
 }
 
 bool App::isSearchResult(const Book& book, const std::string& searchString) {
-    //search the author and title for searchString
-    //TODO: Really do the searching that this dummy comparision
-    return searchString[0] == book.title[0];
+    std::regex pattern {".*" + searchString + ".*", std::regex_constants::icase};
+    return std::regex_match(book.title, pattern) || std::regex_match(book.author, pattern);
 }
