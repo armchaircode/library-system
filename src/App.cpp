@@ -325,7 +325,7 @@ void App::normalHome() {
    favourites_menu |= size(ftxui::WIDTH, ftxui::EQUAL, 60);
 
     int borrowed_book_selected = 0;
-    auto borrowed_menu = Container::Tab({}, &borrowed_book_selected);
+    auto borrowed_menu = Container::Vertical({}, &borrowed_book_selected);
     if (borrowed.empty()) {
         borrowed_menu->Add(
             Renderer([]{
