@@ -7,13 +7,12 @@
 #include "ftxui/component/screen_interactive.hpp"
 #include "ftxui/component/component.hpp"
 #include "ftxui/dom/elements.hpp"
+#include "ftxui/dom/node.hpp"
 
 #include <chrono>
 #include <cstddef>
 #include <cstdlib>
 #include <fstream>
-#include <ftxui/dom/node.hpp>
-#include <ftxui/screen/string.hpp>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -27,14 +26,7 @@ class Exit : public std::exception {};
 
 int App::run() {
     try {
-        while(true) {
-            if(not active_user) {
-                login();
-            }
-            else {
-                home();
-            }
-        }
+        login();
     }
     catch(const Exit& e){
         screen.Exit();
@@ -293,41 +285,17 @@ void App::normalHome() {
     int main_menu_selected = 0;
     auto main_menu = Menu(&main_selection, &main_menu_selected);
 
-
-    int favourite_book_selected = 0;
-    auto favourites_menu = Container::Vertical({}, &favourite_book_selected);
-    if (favourites.empty()) {
-        favourites_menu->Add(
-            Renderer([]{
-                return text("You haven't borrowed any book yet!"); })
-        );
-    }
-    else {
-        for(int i = 0; i<favourites.size(); ++i){
-            favourites_menu->Add(MenuEntry(favourites[i].author + "_" + favourites[i].title));
-        }
-    }
-
-    int borrowed_book_selected = 0;
-    auto borrowed_menu = Container::Tab({}, &borrowed_book_selected);
-    if (borrowed.empty()) {
-        borrowed_menu->Add(
-            Renderer([]{
-                return text("You haven't borrowed any book yet!"); })
-        );
-    }
-    else {
-        for(int i = 0; i<borrowed.size(); ++i) {
-            borrowed_menu->Add(MenuEntry(borrowed[i].author + "_" + borrowed[i].title));
-        }
-    }
-
     int all_book_selected = 0;
     auto all_book_menu = Container::Vertical({}, &all_book_selected);
     if (all_books.empty()) {
         all_book_menu->Add(
             Renderer([]{
-                return text("No books yet!"); })
+                return vbox({
+                    filler(),
+                    text("You haven't borrowed any book yet"),
+                    filler()
+                    });
+            })
         );
     }
     else {
@@ -335,39 +303,85 @@ void App::normalHome() {
             all_book_menu->Add(MenuEntry(all_books[i].author + "_" + all_books[i].title));
         }
     }
+    all_book_menu |= size(ftxui::WIDTH, ftxui::EQUAL, 60);
+
+    int favourite_book_selected = 0;
+    auto favourites_menu = Container::Vertical({}, &favourite_book_selected);
+    if (favourites.empty()) {
+        favourites_menu->Add(
+            Renderer([]{
+                return vbox({
+                    filler(),
+                    text("You haven't liked any book yet"),
+                    filler()
+                });
+            }));
+    }
+    else {
+        for(int i = 0; i<favourites.size(); ++i){
+            favourites_menu->Add(MenuEntry(favourites[i].author + "_" + favourites[i].title));
+        }
+    }
+   favourites_menu |= size(ftxui::WIDTH, ftxui::EQUAL, 60);
+
+    int borrowed_book_selected = 0;
+    auto borrowed_menu = Container::Tab({}, &borrowed_book_selected);
+    if (borrowed.empty()) {
+        borrowed_menu->Add(
+            Renderer([]{
+                return vbox({
+                    filler(),
+                    text("No books in the library"),
+                    filler()
+                });
+            }));
+    }
+    else {
+        for(int i = 0; i<borrowed.size(); ++i) {
+            borrowed_menu->Add(MenuEntry(borrowed[i].author + "_" + borrowed[i].title));
+        }
+    }
+    borrowed_menu |= size(ftxui::WIDTH, ftxui::EQUAL, 60);
 
     auto main_tab = Container::Tab({
         Container::Horizontal({
             all_book_menu,
+            Renderer([] { return separator(); }),
             bookDetail(all_books, all_book_selected)}),
         Container::Horizontal({
             borrowed_menu,
+            Renderer([] { return separator(); }),
             bookDetail(borrowed, borrowed_book_selected)}),
         Container::Horizontal({
             favourites_menu,
-            bookDetail(favourites, favourite_book_selected)})
-        }, &main_menu_selected);
+            Renderer([] { return separator(); }),
+            bookDetail(favourites, favourite_book_selected)}),
+        Container::Vertical({
+            Button("Change passoword", [] {}, ButtonOption::Ascii())
+        })
+    }, &main_menu_selected);
 
-    auto home_screen = Container::Vertical({
+    auto main_menu_container = Container::Vertical({
+        main_menu,
+        Renderer([] { return filler(); }),
+        Renderer([] { return separator(); }),
         Container::Horizontal({
-            main_menu,
-            main_tab
-        }),
-        Button("Logout", [&]{
-            clearSession();
-            active_user = nullptr;
-            screen.Exit();
-        }, ButtonOption::Ascii()),
-       Button("Quit", [&] { throw Exit(); }, ButtonOption::Ascii())
+            Button("Logout", [&]{
+                clearSession();
+                active_user = nullptr;
+                screen.Exit();
+            }, ButtonOption::Ascii()),
+            Button("Quit", [&] { throw Exit(); }, ButtonOption::Ascii())
+        })
+    });
+
+    auto home_screen = Container::Horizontal({
+        main_menu_container,
+        Renderer([] { return separator(); }),
+        main_tab
     }) | border;
 
-    auto home_renderer = Renderer(home_screen, [&] {
-        return ftxui::vbox(
-            home_screen->Render()
-        );
-    });
     screen.Loop(home_screen);
-
 }
 
 void App::home() {
@@ -381,10 +395,10 @@ void App::home() {
 ftxui::Component App::bookDetail(const BookStack& books, const int& selector) {
     using namespace ftxui;
     if (books.empty()) {
-        return Container::Vertical({
-            Renderer([] {
-                return text("Nothing to show!");
-            })
+        return Container::Horizontal({
+            Renderer([] { return filler(); }),
+            Renderer([] { return text("Nothing selected"); }),
+            Renderer([] { return filler(); }),
         });
     }
 
