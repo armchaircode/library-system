@@ -1,8 +1,9 @@
 #include "App.hpp"
 #include "Book.hpp"
 #include "Librarydb.hpp"
-#include "SQLiteCpp/Exception.h"
 #include "User.hpp"
+
+#include "SQLiteCpp/Exception.h"
 
 #include "ftxui/component/screen_interactive.hpp"
 #include "ftxui/component/component.hpp"
@@ -151,6 +152,7 @@ void App::login() {
         auto usr = User{email, signup_username, UserClass::NORMAL};
         db->addUser(usr, signup_password);
         // signed up
+        signup_ok = false;
         signup_password.clear();
         signup_username.clear();
         email.clear();
@@ -181,8 +183,8 @@ void App::login() {
     password_option.password = true;
 
     auto login_screen_container = Container::Vertical({
-        Input(&login_username, "Username") | size(WIDTH, ftxui::EQUAL, 40) | border,
-        Input(&login_password, "Password", password_option) | size(WIDTH, ftxui::EQUAL, 40) | border,
+        Input(&login_username, "Username") | size(ftxui::WIDTH, ftxui::EQUAL, 40) | border,
+        Input(&login_password, "Password", password_option) | size(ftxui::WIDTH, ftxui::EQUAL, 40) | border,
         failed_login,
         Container::Horizontal({
             Button("Login", login_action, ButtonOption::Ascii()),
@@ -238,34 +240,104 @@ void App::adminHome() {
 
     std::vector<std::string> main_selection {
         "Add a book",
-        "Remove a book",
-        "Remove a user",
-        "Privelage management"
+        "Book management",
+        "User management",
+        "My account"
     };
 
+    BookStack all_books = db->getAllBooks();
+    BookStack borrowed = db->getBorrowed(username);
+    BookStack favourites = db->getFavourites(username);
+
+    std::string searchString;
+
+    // Main manu selector
     int main_menu_selected = 0;
     auto main_menu = Menu(&main_selection, &main_menu_selected);
 
-    auto home_screen = Container::Vertical({
-        Container::Horizontal({
-            main_menu
-        }),
-        Button("Logout", [&]{
-            clearSession();
-            active_user = nullptr;
-            screen.Exit();
-        }, ButtonOption::Ascii()),
-        Button("Quit", [&] { throw Exit(); }, ButtonOption::Ascii())
-    });
-
-    auto home_renderer = Renderer(home_screen, [&] {
-        return ftxui::vbox(
-            home_screen->Render()
+    // All books main menu item
+    int all_book_selected = 0;
+    auto all_book_menu = Container::Vertical({}, &all_book_selected);
+    if (all_books.empty()) {
+        all_book_menu->Add(
+            Renderer([]{
+                return vbox({
+                    filler(),
+                    text("No books in the library"),
+                    filler()
+                    });
+            })
         );
+    }
+    else {
+        for(int i = 0; i<all_books.size(); ++i){
+            all_book_menu->Add(
+                MenuEntry(all_books[i].author + "_" + all_books[i].title) | Maybe([&, i] {
+                    return searchString.empty() || isSearchResult(all_books[i], searchString);
+                })
+            );
+        }
+    }
+    all_book_menu |= size(ftxui::WIDTH, ftxui::EQUAL, entryMenuSize);
+
+    // search Area container creator
+    auto searchArea = [&searchString] {
+        return Container::Horizontal({
+            Renderer([] { return filler(); }),
+            Renderer([] { return text("Search: "); }),
+            Input(&searchString, "  here  ") | size(ftxui::WIDTH, ftxui::EQUAL, 10)
+        });
+    };
+
+    // Main entries and the selected entry info containers holder
+    auto main_tab = Container::Tab({
+        Container::Horizontal({
+            //TODO: the container
+            //add_book_container,
+            Container::Vertical({
+                searchArea(),
+                Renderer([]{ return separator(); }),
+                all_book_menu,
+            }),
+            Renderer([] { return separator(); }),
+            bookDetail(all_books, all_book_selected)}),
+            //TODO: the management container
+            //user_management_container,
+            Container::Vertical({
+                Button("Change passoword", []{}, ButtonOption::Ascii())
+            })
+    }, &main_menu_selected);
+
+    // Main menu on left most side
+    auto main_menu_container = Container::Vertical({
+        Renderer([&username]{
+            return hbox({
+                filler(),
+                text(username) | color(Color::Red),
+                filler()
+            });
+        }),
+        main_menu,
+        Renderer([] { return filler(); }),
+        Renderer([] { return separator(); }),
+        Container::Horizontal({
+            Button("Logout", [&]{
+                clearSession();
+                active_user = nullptr;
+                screen.Exit();
+            }, ButtonOption::Ascii()),
+            Button("Quit", [&] { throw Exit(); }, ButtonOption::Ascii())
+        })
     });
+
+    // Outer most container
+    auto home_screen = Container::Horizontal({
+        main_menu_container,
+        Renderer([] { return separator(); }),
+        main_tab
+    }) | border;
+
     screen.Loop(home_screen);
-
-
 }
 
 void App::normalHome() {
