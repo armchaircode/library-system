@@ -17,12 +17,10 @@ class Librarydb{
 
         BookStack getFavourites(std::string username);
         BookStack getBorrowed(std::string username);
-        BookStack getAllBooks(); // returns book_id of all books
+        BookStack getAllBooks(); // returns an array of Books
         Book getBook(std::size_t book_id);
 
-
-        std::vector<std::string> searchBook(std::string val);
-        SQLite::Statement searchUser(std::string val);
+        Users getAllUsers(); // returns an array of User
 
         void addUser(const User nuser, const std::string password);
         void removeUser(const std::string username);
@@ -51,6 +49,7 @@ class Librarydb{
         std::unique_ptr<SQLite::Database> databs;
         void makeSchema();
         std::optional<Book> extractBookInfo(const SQLite::Statement& stmnt);
+        std::optional<User> extractUserInfo(const SQLite::Statement& stmnt);
 };
 
 inline std::unique_ptr<Librarydb> db;

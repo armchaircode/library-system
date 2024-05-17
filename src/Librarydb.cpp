@@ -113,11 +113,7 @@ std::optional<User> Librarydb::restoreSession(std::size_t session){
     SQLite::Statement stmnt{*databs, query};
     stmnt.bind(1, static_cast<int64_t>(session));
     if(stmnt.executeStep()) {
-        User usr;
-        usr.username = stmnt.getColumn(0).getString();
-        usr.email = stmnt.getColumn(1).getString();
-        usr.type = (stmnt.getColumn(2).getString() == "Regular" ? UserClass::NORMAL : UserClass::ADMIN);
-        return usr;
+        return extractUserInfo(stmnt);
     }
     else {
         return {};
@@ -181,20 +177,31 @@ BookStack Librarydb::getBorrowed(std::string username) {
     return std::move(books);
 }
 
-std::vector<std::string> Librarydb::searchBook(std::string val) {
-    std::string query = R"#(
-        SELECT [book_id], [title], [author]
-            FROM 
+Users Librarydb::getAllUsers() {
+    std::vector<User> users;
+    auto query = R"#(
+        SELECT [username], [email], [type]
+            FROM [users]
     )#";
-    std::vector<std::string> result;
-    return std::move(result);
+    SQLite::Statement stmnt{*databs, query};
+    while(stmnt.executeStep()) {
+        users.push_back(extractUserInfo(stmnt).value());
+    }
+
+    return std::move(users);
 }
 
-SQLite::Statement Librarydb::searchUser(std::string val) {
-    // TODO: prepare query
-    std::string query = "";
-    //query += isbn;
-    return SQLite::Statement{*databs, query};
+
+std::optional<User> Librarydb::extractUserInfo(const SQLite::Statement& stmnt) {
+    if (not stmnt.hasRow())
+        return {};
+
+    User usr;
+    usr.username = stmnt.getColumn(0).getString();
+    usr.email = stmnt.getColumn(1).getString();
+    usr.type = (stmnt.getColumn(2).getString() == "Regular" ? UserClass::NORMAL : UserClass::ADMIN);
+
+    return usr;
 }
 
 void Librarydb::addUser(User nuser, std::string password){
@@ -326,10 +333,7 @@ std::optional<User> Librarydb::authenticate(const std::string username, const st
     stmnt.bind(2, password);
     if (stmnt.executeStep()) {
         // correct credentials. Extract user data from columns
-        return {
-            User{stmnt.getColumn(0).getString(), stmnt.getColumn(1).getString(),
-            stmnt.getColumn(2).getString() == "Regular" ? UserClass::NORMAL : UserClass::ADMIN}
-        };
+        return extractUserInfo(stmnt);
     }
     else {
         // incorrect credentials

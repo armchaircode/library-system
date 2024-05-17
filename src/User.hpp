@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 enum class UserClass{
     ADMIN,
@@ -12,3 +13,5 @@ struct User {
     std::string username;
     UserClass type;
 };
+
+typedef std::vector<User> Users;

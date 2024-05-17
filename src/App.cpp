@@ -246,8 +246,7 @@ void App::adminHome() {
     };
 
     BookStack all_books = db->getAllBooks();
-    BookStack borrowed = db->getBorrowed(username);
-    BookStack favourites = db->getFavourites(username);
+    Users all_users = db->getAllUsers();
 
     std::string searchString;
 
@@ -280,6 +279,30 @@ void App::adminHome() {
     }
     all_book_menu |= size(ftxui::WIDTH, ftxui::EQUAL, entryMenuSize);
 
+    int all_user_selected = 0;
+    auto all_user_menu = Container::Vertical({}, &all_user_selected);
+    if (all_users.empty()) {
+        all_user_menu->Add(
+            Renderer([]{
+                return vbox({
+                    filler(),
+                    text("No users yet"),
+                    filler()
+                    });
+            })
+        );
+    }
+    else {
+        for(int i = 0; i<all_users.size(); ++i){
+            all_user_menu->Add(
+                MenuEntry(all_users[i].username + "_" + all_users[i].email) | Maybe([&, i] {
+                    return searchString.empty() || isSearchResult(all_users[i], searchString);
+                })
+            );
+        }
+    }
+    all_user_menu |= size(ftxui::WIDTH, ftxui::EQUAL, entryMenuSize);
+
     // search Area container creator
     auto searchArea = [&searchString] {
         return Container::Horizontal({
@@ -291,21 +314,32 @@ void App::adminHome() {
 
     // Main entries and the selected entry info containers holder
     auto main_tab = Container::Tab({
-        Container::Horizontal({
+        Container::Vertical({
             //TODO: the container
             //add_book_container,
+            Renderer([] { return text("Add book"); })
+        }),
+        Container::Horizontal({
             Container::Vertical({
                 searchArea(),
                 Renderer([]{ return separator(); }),
                 all_book_menu,
             }),
             Renderer([] { return separator(); }),
-            bookDetail(all_books, all_book_selected)}),
-            //TODO: the management container
-            //user_management_container,
+            bookDetail(all_books, all_book_selected)
+        }),
+        Container::Horizontal({
             Container::Vertical({
-                Button("Change passoword", []{}, ButtonOption::Ascii())
-            })
+                searchArea(),
+                Renderer([]{ return separator(); }),
+                all_user_menu,
+            }),
+            Renderer([] { return separator(); }),
+            userDetail(all_users, all_user_selected)
+        }),
+        Container::Vertical({
+            Button("Change passoword", []{}, ButtonOption::Ascii())
+        })
     }, &main_menu_selected);
 
     // Main menu on left most side
@@ -554,7 +588,37 @@ ftxui::Component App::bookDetail(const BookStack& books, const int& selector) {
     });
 }
 
+ftxui::Component App::userDetail(const Users& users, const int& selector) {
+    using namespace ftxui;
+    if (users.empty()) {
+        return Container::Horizontal({
+            Renderer([] { return filler(); }),
+            Renderer([] { return text("Nothing selected"); }),
+            Renderer([] { return filler(); }),
+        });
+    }
+
+    return Container::Vertical({
+        Renderer([&] {
+            return text("Username: " + users[selector].username);
+        }),
+        Renderer([&] {
+            return text("Email: " + users[selector].email);
+        }),
+        Renderer([&] {
+            return text(std::string("Category: ") +
+                        (users[selector].type == UserClass::NORMAL ? "Regular" : "Admin"));
+        })
+    });
+}
+
+
 bool App::isSearchResult(const Book& book, const std::string& searchString) {
     std::regex pattern {".*" + searchString + ".*", std::regex_constants::icase};
     return std::regex_match(book.title, pattern) || std::regex_match(book.author, pattern);
+}
+
+bool App::isSearchResult(const User& book, const std::string& searchString) {
+    std::regex pattern {".*" + searchString + ".*", std::regex_constants::icase};
+    return std::regex_match(book.username, pattern) || std::regex_match(book.email, pattern);
 }
