@@ -10,6 +10,8 @@
 #include "ftxui/dom/elements.hpp"
 #include "ftxui/dom/node.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cstddef>
 #include <cstdlib>
@@ -18,6 +20,7 @@
 #include <iostream>
 #include <memory>
 #include <exception>
+#include <stdexcept>
 #include <string>
 #include <sys/types.h>
 #include <thread>
@@ -312,13 +315,101 @@ void App::adminHome() {
         });
     };
 
+    bool add_book_ok = false, show_add_click_error = false, add_book_successfull = false;
+    std::string add_book_title, add_book_author, add_book_quantity, add_book_publisher,
+            add_book_pub_year, add_book_edition, add_book_description, add_book_error_message;
+    int text_label_size = 20;
+    auto add_book_container = Container::Vertical({
+        Container::Horizontal({
+            Container::Vertical({
+                Renderer([&text_label_size] { return text("Title: ") | size(ftxui::WIDTH, ftxui::EQUAL, text_label_size); }),
+                Renderer([&text_label_size] { return text("Author: ") | size(ftxui::WIDTH, ftxui::EQUAL, text_label_size); }),
+                Renderer([&text_label_size] { return text("Quantity: ") | size(ftxui::WIDTH, ftxui::EQUAL, text_label_size); }),
+                Renderer([&text_label_size] { return text("Publisher: ") | size(ftxui::WIDTH, ftxui::EQUAL, text_label_size); }),
+                Renderer([&text_label_size] { return text("Publication year: ") | size(ftxui::WIDTH, ftxui::EQUAL, text_label_size); }),
+                Renderer([&text_label_size] { return text("Edition: ") | size(ftxui::WIDTH, ftxui::EQUAL, text_label_size); }),
+                Renderer([&text_label_size] { return text("Description: ") | size(ftxui::WIDTH, ftxui::EQUAL, text_label_size); }),
+            }),
+            Renderer([]{ return separator(); }),
+            Container::Vertical({
+                Input(&add_book_title, "title"),
+                Input(&add_book_author, "author"),
+                Input(&add_book_quantity, "quantity"),
+                Input(&add_book_publisher, "publisher"),
+                Input(&add_book_pub_year, "year"),
+                Input(&add_book_edition, "edition"),
+                Input(&add_book_description, "description")
+            }),
+        }),
+        Renderer([&add_book_error_message] { return text(add_book_error_message) | color(Color::Red); }) |
+            Maybe([&] {
+                bool show_error = true;
+                add_book_ok = false;
+                auto isItDigit = [](const char ch) { return std::isdigit(ch); };
+                if (!add_book_quantity.empty() && ! std::ranges::all_of(add_book_quantity, isItDigit)) {
+                    add_book_error_message = "Invalid quantity input";
+                }
+                else if (!add_book_pub_year.empty() && ! std::ranges::all_of(add_book_pub_year, isItDigit)) {
+                    add_book_error_message = "Invalid publication year";
+                }
+                else if (!add_book_edition.empty() && ! std::ranges::all_of(add_book_edition, isItDigit)) {
+                    add_book_error_message = "Invalid edition number";
+                }
+                else {
+                    show_error = false;
+                    add_book_ok = true;
+                }
+                return show_error || show_add_click_error;
+            }),
+        Renderer([] { return text("Book added successfully") | color(Color::Green); }) | Maybe(&add_book_successfull),
+        Button("Add Book", [&]{
+            if ( ! add_book_ok)
+                return;
+
+            bool required_field_missing_error = true;
+            if(add_book_title.empty()) {
+                add_book_error_message = "Title is required";
+            }
+            else if (add_book_author.empty()) {
+                add_book_error_message = "Author name is required";
+            }
+            else if(add_book_quantity.empty()) {
+                add_book_error_message = "Quantity is required";
+            }
+            else {
+                required_field_missing_error = false;
+            }
+
+            if(required_field_missing_error) {
+                flip(show_add_click_error);
+                return;
+            }
+
+            // all is good
+            Book book;
+            book.title = add_book_title;
+            book.author = add_book_author;
+            book.quantity = std::stoi(add_book_quantity);
+            book.publisher = add_book_publisher;
+
+            // pub_year and edition can be left empty, in which case tey are set to -1
+            try{
+                book.pub_year = std::stoi(add_book_pub_year);
+                book.edition = std::stoi(add_book_edition);
+            }
+            catch(const std::invalid_argument&){
+                book.pub_year = -1;
+                book.edition = -1;
+            }
+            book.description = add_book_description;
+            //db->addBook(book);
+            flip(add_book_successfull);
+        }, ButtonOption::Ascii())
+    });
+
     // Main entries and the selected entry info containers holder
     auto main_tab = Container::Tab({
-        Container::Vertical({
-            //TODO: the container
-            //add_book_container,
-            Renderer([] { return text("Add book"); })
-        }),
+        add_book_container,
         Container::Horizontal({
             Container::Vertical({
                 searchArea(),
@@ -618,7 +709,7 @@ bool App::isSearchResult(const Book& book, const std::string& searchString) {
     return std::regex_match(book.title, pattern) || std::regex_match(book.author, pattern);
 }
 
-bool App::isSearchResult(const User& book, const std::string& searchString) {
+bool App::isSearchResult(const User& usr, const std::string& searchString) {
     std::regex pattern {".*" + searchString + ".*", std::regex_constants::icase};
-    return std::regex_match(book.username, pattern) || std::regex_match(book.email, pattern);
+    return std::regex_match(usr.username, pattern) || std::regex_match(usr.email, pattern);
 }

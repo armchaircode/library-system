@@ -30,7 +30,7 @@ class App {
         ftxui::Component bookDetail(const BookStack& books, const int& selector);
         ftxui::Component userDetail(const Users& users, const int& selector);
         bool isSearchResult(const Book& book, const std::string& searchString);
-        bool isSearchResult(const User& book, const std::string& searchString);
+        bool isSearchResult(const User& usr, const std::string& searchString);
 };
 
 inline std::unique_ptr<App> ap;
