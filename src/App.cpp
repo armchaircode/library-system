@@ -594,6 +594,48 @@ void App::normalHome() {
         });
     };
 
+    auto borrow_button_action = [&] {
+        db->borrow(username, all_books[all_book_selected].book_id);
+        if(borrowed.empty()) {
+            // there is no menu
+            borrowed_menu->ChildAt(0)->Detach();
+        }
+        // one borrowed, minus one from available books
+        --all_books[all_book_selected].quantity;
+
+        auto indx = borrowed.size();
+        borrowed.push_back(all_books[all_book_selected]);
+        borrowed_menu->Add(
+            MenuEntry(borrowed[indx].author + "_" + borrowed[indx].title) | Maybe([&, indx] {
+                return searchString.empty() || isSearchResult(borrowed[indx], searchString);
+            })
+        );
+    };
+
+    auto borrow_button = Button("Borrow", borrow_button_action, ButtonOption::Ascii()) | Maybe([&] {
+        return std::ranges::none_of(borrowed, [&](const Book& book) {
+                return book.book_id == all_books[all_book_selected].book_id; })
+            && all_books[all_book_selected].quantity > 0;
+    });
+
+    auto like_button_action = [&] {
+        db->addFavourite(username, all_books[all_book_selected].book_id);
+        if (favourites.empty()) {
+            favourites_menu->ChildAt(0)->Detach();
+        }
+
+        auto indx = favourites.size();
+        favourites.push_back(all_books[all_book_selected]);
+        favourites_menu->Add(
+            MenuEntry(favourites[indx].author + "_" + favourites[indx].title) | Maybe([&, indx] {
+                return searchString.empty() || isSearchResult(favourites[indx], searchString);
+            })
+        );
+    };
+
+    auto like_button = Button("Like", like_button_action, ButtonOption::Ascii());
+
+
     // Main entries and the selected entry info containers holder
     auto main_tab = Container::Tab({
         Container::Horizontal({
@@ -603,7 +645,17 @@ void App::normalHome() {
                 all_book_menu,
             }),
             Renderer([] { return separator(); }),
-            bookDetail(all_books, all_book_selected)}),
+            Container::Vertical({
+                bookDetail(all_books, all_book_selected),
+                Renderer([] { return filler();}),
+                Container::Horizontal({
+                    Renderer([] { return filler();}),
+                    borrow_button,
+                    like_button,
+                    Renderer([] { return filler();})
+                })
+            }),
+        }),
         Container::Horizontal({
             Container::Vertical({
                 searchArea(),

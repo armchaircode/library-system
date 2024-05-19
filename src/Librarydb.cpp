@@ -287,6 +287,15 @@ void Librarydb::borrow(std::string username, std::size_t book_id) {
     stmnt.bind(1, username);
     stmnt.bind(2, static_cast<int64_t>(book_id));
     stmnt.exec();
+
+    // Reduce available number by one
+    query = R"#(
+        UPDATE [books] SET quantity = quantity - 1
+            WHERE book_id = ?
+    )#";
+    stmnt = SQLite::Statement(*databs, query);
+    stmnt.bind(1, static_cast<int64_t>(book_id));
+    stmnt.exec();
 }
 
 void Librarydb::unborrow(std::string username, std::size_t book_id) {
