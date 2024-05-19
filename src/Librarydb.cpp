@@ -328,7 +328,7 @@ Book Librarydb::getBook(std::size_t book_id) {
 }
 
 std::optional<User> Librarydb::authenticate(const std::string username, const std::string password) {
-    SQLite::Statement stmnt{*databs, "SELECT [email], [username], [type] FROM [Users] WHERE username = ? AND password = ?"};
+    SQLite::Statement stmnt{*databs, "SELECT [username], [email], [type] FROM [Users] WHERE username = ? AND password = ?"};
     stmnt.bind(1, username);
     stmnt.bind(2, password);
     if (stmnt.executeStep()) {
