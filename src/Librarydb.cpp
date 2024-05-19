@@ -42,7 +42,7 @@ void Librarydb::makeSchema(){
     // Default admin account
     databs->exec(R"#(
                  INSERT INTO [users] (email, username, password, type)
-                    VALUES ('root@library.me', 'root', '1234567890', 'Admin')
+                    VALUES ('root@library.me', 'root', 'root', 'Admin')
                  )#");
     // Create books table
     databs->exec(R"#(
