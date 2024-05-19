@@ -9,6 +9,7 @@
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -223,7 +224,7 @@ void Librarydb::removeUser(std::string username){
     stmnt.exec();
 }
 
-void Librarydb::addBook(const Book nuser){
+void Librarydb::addBook(const Book& book){
     auto query = R"#(
         INSERT INTO [Books] (
                     [book_id], [title], [author], [quantity], [publisher],
@@ -232,15 +233,15 @@ void Librarydb::addBook(const Book nuser){
         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
     )#";
     SQLite::Statement stmnt(*databs, query);
-    stmnt.bind(1, static_cast<std::int64_t>(nuser.book_id));
-    stmnt.bind(2, nuser.title);
-    stmnt.bind(3, nuser.author);
-    stmnt.bind(4, nuser.quantity);
-    stmnt.bind(5, nuser.publisher);
-    stmnt.bind(6, nuser.pub_year);
-    stmnt.bind(7, nuser.description);
-    stmnt.bind(8, nuser.edition);
-    stmnt.bind(9, nuser.rating);
+    stmnt.bind(1, static_cast<std::int64_t>(book.book_id));
+    stmnt.bind(2, book.title);
+    stmnt.bind(3, book.author);
+    stmnt.bind(4, book.quantity);
+    book.publisher.empty() ? stmnt.bind(5) : stmnt.bind(5, book.publisher);
+    book.pub_year < 0 ? stmnt.bind(6) : stmnt.bind(6, book.pub_year);
+    book.description.empty() ? stmnt.bind(7) : stmnt.bind(7, book.description);
+    book.edition < 0 ? stmnt.bind(8) : stmnt.bind(8, book.edition);
+    stmnt.bind(9, 0.0);
     stmnt.exec();
 }
 

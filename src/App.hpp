@@ -29,6 +29,7 @@ class App {
         void saveSession();
         ftxui::Component bookDetail(const BookStack& books, const int& selector);
         ftxui::Component userDetail(const Users& users, const int& selector);
+        ftxui::Component label(const std::string txt);
         bool isSearchResult(const Book& book, const std::string& searchString);
         bool isSearchResult(const User& usr, const std::string& searchString);
 };

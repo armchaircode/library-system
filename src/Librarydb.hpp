@@ -9,7 +9,6 @@
 #include <memory>
 #include <optional>
 #include <string>
-#include <vector>
 
 class Librarydb{
     public:
@@ -25,7 +24,7 @@ class Librarydb{
         void addUser(const User nuser, const std::string password);
         void removeUser(const std::string username);
 
-        void addBook(const Book nbook);
+        void addBook(const Book& book);
         void removeBook(std::size_t book_id);
 
         void addFavourite(std::string username, std::size_t book_id);
