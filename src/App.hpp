@@ -32,6 +32,7 @@ class App {
         ftxui::Component label(const std::string txt);
         bool isSearchResult(const Book& book, const std::string& searchString);
         bool isSearchResult(const User& usr, const std::string& searchString);
+        ftxui::Component accountMgmtScreen(std::string& new_password, bool& password_change_success, bool& deleting_account);
 };
 
 inline std::unique_ptr<App> ap;

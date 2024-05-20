@@ -219,6 +219,8 @@ void Librarydb::addUser(User nuser, std::string password){
 }
 
 void Librarydb::removeUser(std::string username){
+    unborrowAll(username);
+    unfavouriteAll(username);
     SQLite::Statement stmnt(*databs, "DELETE FROM [Users] WHERE username = ?");
     stmnt.bind(1, username);
     stmnt.exec();
@@ -277,6 +279,11 @@ void Librarydb::removeFavourite(std::string username, std::size_t book_id) {
     stmnt.bind(2, static_cast<std::int64_t>(book_id));
     stmnt.exec();
 }
+void Librarydb::unfavouriteAll(std::string username){
+    SQLite::Statement stmnt(*databs, "DELETE FROM [favourites] WHERE username = ?");
+    stmnt.bind(1, username);
+    stmnt.exec();
+}
 
 void Librarydb::borrow(std::string username, std::size_t book_id) {
     auto query = R"#(
@@ -302,6 +309,28 @@ void Librarydb::unborrow(std::string username, std::size_t book_id) {
     SQLite::Statement stmnt(*databs, "DELETE FROM [borrows] WHERE username = ? AND book_id = ?");
     stmnt.bind(1, username);
     stmnt.bind(2, static_cast<std::int64_t>(book_id));
+    stmnt.exec();
+}
+
+void Librarydb::unborrowAll(std::string username) {
+    auto query = R"#(
+        UPDATE [books]
+            SET quantity = quantity + 1
+        WHERE [book_id] IN (
+            SELECT [book_id] FROM [borrows]
+                WHERE username = ?
+        )
+    )#";
+    SQLite::Statement stmnt(*databs, query);
+    stmnt.bind(1, username);
+    stmnt.exec();
+
+    query = R"#(
+        DELETE FROM [borrows]
+            WHERE username = ?
+    )#";
+    stmnt = SQLite::Statement(*databs, query);
+    stmnt.bind(1, username);
     stmnt.exec();
 }
 
@@ -395,4 +424,14 @@ std::optional<Book> Librarydb::extractBookInfo(const SQLite::Statement& stmnt) {
     bok.rating = stmnt.getColumn(8).isNull() ? -1.0 : stmnt.getColumn(8).getDouble();
 
     return std::move(bok);
+}
+
+void Librarydb::changePassword(std::string& username, std::string& password) {
+    auto query = R"#(
+        UPDATE [users] SET password = ? WHERE username = ?
+    )#";
+    SQLite::Statement stmnt(*databs, query);
+    stmnt.bind(1, password);
+    stmnt.bind(2, username);
+    stmnt.exec();
 }

@@ -10,22 +10,21 @@
 #include "ftxui/dom/elements.hpp"
 #include "ftxui/dom/node.hpp"
 
-#include <algorithm>
-#include <cctype>
-#include <chrono>
-#include <cstddef>
-#include <cstdlib>
-#include <fstream>
-#include <functional>
-#include <iostream>
-#include <memory>
-#include <exception>
-#include <stdexcept>
-#include <string>
+#include <algorithm> // all_of, none_of
+#include <cctype> // isdigit
+#include <chrono> // system_clock
+#include <cstddef> // size_t
+#include <cstdlib> // EXIT_FAILURE, EXIT_SUCCESS
+#include <fstream> // ifstream, ofstream
+#include <functional> // hash
+#include <iostream> // cerr
+#include <memory> // make_unique
+#include <exception> // exception
+#include <string> // string
 #include <sys/types.h>
-#include <thread>
-#include <regex>
-#include <vector>
+#include <thread> // thread
+#include <regex> // regex, regex_match
+#include <vector> // vector
 
 class Exit : public std::exception {};
 
@@ -147,6 +146,9 @@ void App::login() {
         return text("Login failed. Wrong credentials!") | color(Color::Red);
     }) | Maybe(&show_failed_authentication);
 
+    std::vector<std::string> toggle_labels{"Login", "Signup"};
+    int login_signup_selected = 0;
+
     auto signup_action = [&] {
         if (! signup_ok)
             return;
@@ -159,6 +161,7 @@ void App::login() {
         signup_password.clear();
         signup_username.clear();
         email.clear();
+        login_signup_selected = 0;
         active_user = std::make_unique<User>(usr);
         saveSession();
         home();
@@ -167,7 +170,6 @@ void App::login() {
     auto login_action = [&] {
         auto usr = db->authenticate(login_username, login_password);
         if (not usr) {
-            login_username.clear();
             login_password.clear();
             flip(show_failed_authentication);
             }
@@ -205,9 +207,6 @@ void App::login() {
             Button("Quit", [&] { throw Exit(); }, ButtonOption::Ascii())
        })
     });
-
-    std::vector<std::string> toggle_labels{"Login", "Signup"};
-    int login_signup_selected = 0;
 
     auto login_signup_screen = Container::Vertical({
         Toggle(&toggle_labels, &login_signup_selected),
@@ -434,6 +433,10 @@ void App::adminHome() {
         })
     });
 
+    std::string new_password;
+    bool deleting_account = false, password_change_success = false;
+
+
     // Main entries and the selected entry info containers holder
     auto main_tab = Container::Tab({
         add_book_container,
@@ -455,9 +458,9 @@ void App::adminHome() {
             Renderer([] { return separator(); }),
             userDetail(all_users, all_user_selected)
         }),
-        Container::Vertical({
-            Button("Change passoword", []{}, ButtonOption::Ascii())
-        })
+
+        accountMgmtScreen(new_password, password_change_success, deleting_account)
+
     }, &main_menu_selected);
 
     // Main menu on left most side
@@ -632,12 +635,38 @@ void App::normalHome() {
             })
         );
     };
-
     auto like_button = Button("Like", like_button_action, ButtonOption::Ascii());
 
+    auto unborrow_button_action = [&] {
+        db->unborrow(username, borrowed[borrowed_book_selected].book_id);
+        // one book returned, add one to available number
+        auto ptr = std::ranges::find_if(all_books, [&](const Book& book) {
+            return book.book_id == borrowed[borrowed_book_selected].book_id;
+        });
+        ++(*ptr).quantity;
+        // delete from borrowed books working copy
+        borrowed.erase(borrowed.begin() + borrowed_book_selected);
+        // TODO:
+        // Remove from the menu
+    };
+    auto unborrow_button = Button("Return", unborrow_button_action, ButtonOption::Ascii());
+
+    auto unlike_button_action = [&] {
+        // remove from database
+        db->removeFavourite(username, favourites[favourite_book_selected].book_id);
+        // remove from working copy of favourites
+        favourites.erase(favourites.begin() + favourite_book_selected);
+        //TODO:
+        // Remove from the favourites menu
+    };
+    auto unlike_button = Button("Unlike", unlike_button_action, ButtonOption::Ascii());
+
+    std::string new_password;
+    bool deleting_account = false, password_change_success = false;
 
     // Main entries and the selected entry info containers holder
     auto main_tab = Container::Tab({
+        // all books tab
         Container::Horizontal({
             Container::Vertical({
                 searchArea(),
@@ -656,6 +685,8 @@ void App::normalHome() {
                 })
             }),
         }),
+
+        // borrowed books tab
         Container::Horizontal({
             Container::Vertical({
                 searchArea(),
@@ -663,7 +694,25 @@ void App::normalHome() {
                 borrowed_menu,
             }),
             Renderer([] { return separator(); }),
-            bookDetail(borrowed, borrowed_book_selected)}),
+            Container::Vertical({
+                bookDetail(borrowed, borrowed_book_selected),
+                Renderer([] { return filler();}),
+                Container::Horizontal({
+                    Renderer([] { return filler();}),
+                    unborrow_button,
+                    Button("Return all", [&] {
+                        //TODO:
+                        /*
+                        db->unborrowAll(username);
+                        borrowed.clear();
+                        */
+                    }, ButtonOption::Ascii()),
+                    Renderer([] { return filler();})
+                })
+            }),
+        }),
+
+        // favourites tab
         Container::Horizontal({
             Container::Vertical({
                 searchArea(),
@@ -671,10 +720,20 @@ void App::normalHome() {
                 favourites_menu,
             }),
             Renderer([] { return separator(); }),
-            bookDetail(favourites, favourite_book_selected)}),
-        Container::Vertical({
-            Button("Change passoword", []{}, ButtonOption::Ascii())
-        })
+            Container::Vertical({
+                bookDetail(favourites, favourite_book_selected),
+                Renderer([] { return filler();}),
+                Container::Horizontal({
+                    Renderer([] { return filler();}),
+                    unlike_button,
+                    Renderer([] { return filler();})
+                })
+            })
+        }),
+
+        // account tab
+        accountMgmtScreen(new_password, password_change_success, deleting_account)
+
     }, &main_menu_selected);
 
     // Main menu on left most side
@@ -738,14 +797,14 @@ ftxui::Component App::bookDetail(const BookStack& books, const int& selector) {
             return text("Publisher: " + books[selector].publisher);
         }) | Maybe([&] { return ! books[selector].publisher.empty(); }),
         Renderer([&] {
-                return text("Pub. Year: " + std::to_string(books[selector].pub_year));
+            return text("Pub. Year: " + std::to_string(books[selector].pub_year));
         }) | Maybe([&] { return books[selector].pub_year > 0; }),
         Renderer([&] {
             return text("Edition: " + std::to_string(books[selector].edition));
         }) | Maybe([&] { return books[selector].edition > 0; }),
         Renderer([&] {
-                return text("Rating: " + std::to_string(books[selector].rating).substr(0,3));
-            }) | Maybe([&] { return books[selector].rating >= 0; }),
+            return text("Rating: " + std::to_string(books[selector].rating).substr(0,3));
+        }) | Maybe([&] { return books[selector].rating >= 0; }),
         Renderer([&] {
             return text("Availablity: " + std::string(books[selector].quantity > 0 ? "Available" : "Not Available"));
         }),
@@ -801,3 +860,63 @@ ftxui::Component App::label(const std::string txt) {
         }) | size(ftxui::WIDTH, ftxui::EQUAL, 20);
 };
 
+ftxui::Component App::accountMgmtScreen(std::string& new_password, bool& password_change_success, bool& deleting_account) {
+    using namespace ftxui;
+
+    auto password_option = InputOption();
+    password_option.password = true;
+    if (active_user->username == "root") {
+        return Container::Vertical({
+            Input(&new_password, " password", password_option),
+            Renderer([]{ return text("Password too short") | color(Color::Red); }) | Maybe([&] {
+                return !new_password.empty() && new_password.size() < 4;
+            }),
+            Renderer([] { return text("Password changed successfully") | color(Color::Green); }) |
+                Maybe(&password_change_success),
+            Button("Change passoword", [&]{
+                if(new_password.size() < 4)
+                    return;
+                db->changePassword(active_user->username, new_password);
+                new_password.clear();
+                flip(password_change_success);
+            }, ButtonOption::Ascii())
+        });
+    }
+
+    return Container::Vertical({
+        Input(&new_password, "            password", password_option),
+        Renderer([]{ return text("Password too short") | color(Color::Red); }) | Maybe([&] {
+            return !new_password.empty() && new_password.size() < 4;
+        }),
+        Renderer([] { return text("Password changed successfully") | color(Color::Green); }) |
+            Maybe(&password_change_success),
+        Container::Horizontal({
+            Button("Change passoword", [&]{
+                if(new_password.size() < 4)
+                    return;
+                db->changePassword(active_user->username, new_password);
+                new_password.clear();
+                flip(password_change_success);
+            }, ButtonOption::Ascii()),
+            Button("Delete Account", [&]{
+                deleting_account = true;
+            }, ButtonOption::Ascii())
+        }),
+        Container::Vertical({
+            Renderer([]{ return text("This action is irreversible. Are you sure?") | color(Color::Red); }),
+            Container::Horizontal({
+                Renderer([] { return filler(); }),
+                Button("Yes", [&] {
+                    db->removeUser(active_user->username);
+                    clearSession();
+                    active_user = nullptr;
+                    screen.Exit();
+                }, ButtonOption::Ascii()),
+                Button("No", [&] {
+                    deleting_account = false;
+                }, ButtonOption::Ascii()),
+                Renderer([] { return filler(); })
+            })
+        }) | Maybe(&deleting_account)
+    });
+}

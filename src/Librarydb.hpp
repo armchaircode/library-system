@@ -29,9 +29,11 @@ class Librarydb{
 
         void addFavourite(std::string username, std::size_t book_id);
         void removeFavourite(std::string username, std::size_t book_id);
+        void unfavouriteAll(std::string username);
 
         void borrow(std::string username, std::size_t book_id);
         void unborrow(std::string username, std::size_t book_id);
+        void unborrowAll(std::string username);
 
         std::optional<User> restoreSession(std::size_t session);
         void newSession(std::string username, std::size_t session);
@@ -41,6 +43,7 @@ class Librarydb{
 
         bool usernameExists(const std::string& username);
         bool emailIsUsed(const std::string& email);
+        void changePassword(std::string& username, std::string& password);
 
     private:
         void init();
