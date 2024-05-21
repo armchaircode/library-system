@@ -16,6 +16,7 @@
 #include <cstddef> // size_t
 #include <cstdlib> // EXIT_FAILURE, EXIT_SUCCESS
 #include <fstream> // ifstream, ofstream
+#include <ftxui/component/component_options.hpp>
 #include <functional> // hash
 #include <iostream> // cerr
 #include <memory> // make_unique
@@ -259,18 +260,7 @@ void App::adminHome() {
     // All books main menu item
     int all_book_selected = 0;
     auto all_book_menu = Container::Vertical({}, &all_book_selected);
-    if (all_books.empty()) {
-        all_book_menu->Add(
-            Renderer([]{
-                return vbox({
-                    filler(),
-                    text("No books in the library"),
-                    filler()
-                    });
-            })
-        );
-    }
-    else {
+    if (not all_books.empty()) {
         for(int i = 0; i<all_books.size(); ++i){
             all_book_menu->Add(
                 MenuEntry(all_books[i].author + "_" + all_books[i].title) | Maybe([&, i] {
@@ -283,18 +273,7 @@ void App::adminHome() {
 
     int all_user_selected = 0;
     auto all_user_menu = Container::Vertical({}, &all_user_selected);
-    if (all_users.empty()) {
-        all_user_menu->Add(
-            Renderer([]{
-                return vbox({
-                    filler(),
-                    text("No users yet"),
-                    filler()
-                    });
-            })
-        );
-    }
-    else {
+    if (not all_users.empty()) {
         for(int i = 0; i<all_users.size(); ++i){
             all_user_menu->Add(
                 MenuEntry(all_users[i].username + "_" + all_users[i].email) | Maybe([&, i] {
@@ -433,9 +412,43 @@ void App::adminHome() {
         })
     });
 
+    // Book management buttons
+    auto remove_book_button_action = [&] {
+        db->removeBook(all_books[all_book_selected].book_id);
+        all_books.erase(all_books.begin() + all_book_selected);
+        // TODO: Remove from book menu
+    };
+    auto remove_book_button = Button("Remove", remove_book_button_action, ButtonOption::Ascii());
+
+    // User Management buttons
+    auto remove_user_button_action = [&] {
+        db->removeUser(all_users[all_user_selected].username);
+        all_users.erase(all_users.begin() + all_user_selected);
+        //TODO: Remove from the menu
+    };
+    auto remove_user_button = Button("Remove", remove_user_button_action, ButtonOption::Ascii());
+
+    auto grant_privelege_button_action = [&] {
+        db->makeAdmin(all_users[all_user_selected].username);
+        all_users[all_user_selected].type = UserClass::ADMIN;
+    };
+    auto grant_privelege_button = Button("Grant Admin Rights", grant_privelege_button_action, ButtonOption::Ascii()) |
+        Maybe([&] { return all_users[all_user_selected].type == UserClass::NORMAL; });
+
+    auto revoke_privelege_button_action = [&] {
+        db->demoteAdmin(all_users[all_user_selected].username);
+        all_users[all_user_selected].type = UserClass::NORMAL;
+        if (all_users[all_user_selected].username == active_user->username) {
+            active_user = nullptr;
+            screen.Exit();
+        }
+    };
+    auto revoke_privelege_button = Button("Revoke Admin Rights", revoke_privelege_button_action, ButtonOption::Ascii()) |
+        Maybe([&] { return all_users[all_user_selected].type == UserClass::ADMIN; });
+
+
     std::string new_password;
     bool deleting_account = false, password_change_success = false;
-
 
     // Main entries and the selected entry info containers holder
     auto main_tab = Container::Tab({
@@ -445,10 +458,19 @@ void App::adminHome() {
                 searchArea(),
                 Renderer([]{ return separator(); }),
                 all_book_menu
-            }),
+            }) | Maybe([&] { return ! all_books.empty(); }),
             Renderer([] { return separator(); }),
-            bookDetail(all_books, all_book_selected)
-        }),
+            Container::Vertical({
+                bookDetail(all_books, all_book_selected),
+                Renderer([] { return filler(); }),
+                Container::Horizontal({
+                    Renderer([] { return filler(); }),
+                    remove_book_button,
+                    Renderer([] { return filler(); })
+                })
+            })
+        }) | Maybe([&] { return ! all_books.empty(); }),
+
         Container::Horizontal({
             Container::Vertical({
                 searchArea(),
@@ -456,8 +478,16 @@ void App::adminHome() {
                 all_user_menu,
             }),
             Renderer([] { return separator(); }),
-            userDetail(all_users, all_user_selected)
-        }),
+            Container::Vertical({
+                userDetail(all_users, all_user_selected),
+                Renderer([] { return filler(); }),
+                Container::Horizontal({
+                    Renderer([] { return filler(); }),
+                    remove_user_button, grant_privelege_button, revoke_privelege_button,
+                    Renderer([] { return filler(); })
+                })
+            })
+        }) | Maybe([&] { return ! all_users.empty(); }),
 
         accountMgmtScreen(new_password, password_change_success, deleting_account)
 
@@ -518,18 +548,7 @@ void App::normalHome() {
     // All books main menu item
     int all_book_selected = 0;
     auto all_book_menu = Container::Vertical({}, &all_book_selected);
-    if (all_books.empty()) {
-        all_book_menu->Add(
-            Renderer([]{
-                return vbox({
-                    filler(),
-                    text("No books in the library"),
-                    filler()
-                    });
-            })
-        );
-    }
-    else {
+    if (not all_books.empty()) {
         for(int i = 0; i<all_books.size(); ++i){
             all_book_menu->Add(
                 MenuEntry(all_books[i].author + "_" + all_books[i].title) | Maybe([&, i] {
@@ -543,17 +562,7 @@ void App::normalHome() {
     // Favourite books main menu item
     int favourite_book_selected = 0;
     auto favourites_menu = Container::Vertical({}, &favourite_book_selected);
-    if (favourites.empty()) {
-        favourites_menu->Add(
-            Renderer([]{
-                return vbox({
-                    filler(),
-                    text("You haven't liked any book yet"),
-                    filler()
-                });
-            }));
-    }
-    else {
+    if (not favourites.empty()) {
         for(int i = 0; i<favourites.size(); ++i){
             favourites_menu->Add(
                 MenuEntry(favourites[i].author + "_" + favourites[i].title) | Maybe([&, i] {
@@ -567,17 +576,7 @@ void App::normalHome() {
     // borrowed books main manu item
     int borrowed_book_selected = 0;
     auto borrowed_menu = Container::Vertical({}, &borrowed_book_selected);
-    if (borrowed.empty()) {
-        borrowed_menu->Add(
-            Renderer([]{
-                return vbox({
-                    filler(),
-                    text("You haven't borrowed any book yet"),
-                    filler()
-                });
-            }));
-    }
-    else {
+    if (not borrowed.empty()) {
         for(int i = 0; i<borrowed.size(); ++i) {
             borrowed_menu->Add(
                 MenuEntry(borrowed[i].author + "_" + borrowed[i].title) | Maybe([&, i] {
@@ -599,10 +598,6 @@ void App::normalHome() {
 
     auto borrow_button_action = [&] {
         db->borrow(username, all_books[all_book_selected].book_id);
-        if(borrowed.empty()) {
-            // there is no menu
-            borrowed_menu->ChildAt(0)->Detach();
-        }
         // one borrowed, minus one from available books
         --all_books[all_book_selected].quantity;
 
@@ -623,9 +618,6 @@ void App::normalHome() {
 
     auto like_button_action = [&] {
         db->addFavourite(username, all_books[all_book_selected].book_id);
-        if (favourites.empty()) {
-            favourites_menu->ChildAt(0)->Detach();
-        }
 
         auto indx = favourites.size();
         favourites.push_back(all_books[all_book_selected]);
@@ -684,7 +676,7 @@ void App::normalHome() {
                     Renderer([] { return filler();})
                 })
             }),
-        }),
+        }) | Maybe([&] { return ! all_books.empty(); }),
 
         // borrowed books tab
         Container::Horizontal({
@@ -709,8 +701,8 @@ void App::normalHome() {
                     }, ButtonOption::Ascii()),
                     Renderer([] { return filler();})
                 })
-            }),
-        }),
+            })
+        }) | Maybe([&] { return ! borrowed.empty(); }),
 
         // favourites tab
         Container::Horizontal({
@@ -729,7 +721,7 @@ void App::normalHome() {
                     Renderer([] { return filler();})
                 })
             })
-        }),
+        }) | Maybe([&] { return ! favourites.empty(); }),
 
         // account tab
         accountMgmtScreen(new_password, password_change_success, deleting_account)
@@ -778,13 +770,6 @@ void App::home() {
 
 ftxui::Component App::bookDetail(const BookStack& books, const int& selector) {
     using namespace ftxui;
-    if (books.empty()) {
-        return Container::Horizontal({
-            Renderer([] { return filler(); }),
-            Renderer([] { return text("Nothing selected"); }),
-            Renderer([] { return filler(); }),
-        });
-    }
 
     return Container::Vertical({
         Renderer([&] {

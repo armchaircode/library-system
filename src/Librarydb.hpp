@@ -45,6 +45,9 @@ class Librarydb{
         bool emailIsUsed(const std::string& email);
         void changePassword(std::string& username, std::string& password);
 
+        void makeAdmin(const std::string& username);
+        void demoteAdmin(const std::string& username);
+
     private:
         void init();
         std::string db_path;

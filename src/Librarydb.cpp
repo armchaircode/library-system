@@ -183,6 +183,7 @@ Users Librarydb::getAllUsers() {
     auto query = R"#(
         SELECT [username], [email], [type]
             FROM [users]
+        WHERE NOT [username] = 'root'
     )#";
     SQLite::Statement stmnt{*databs, query};
     while(stmnt.executeStep()) {
@@ -253,6 +254,22 @@ void Librarydb::removeBook(std::size_t book_id) {
             WHERE book_id = ?
     )#";
     SQLite::Statement stmnt{*databs, query};
+    stmnt.bind(1, static_cast<std::int64_t>(book_id));
+    stmnt.exec();
+
+    query = R"#(
+        DELETE FROM [borrows]
+            WHERE book_id = ?
+    )#";
+    stmnt = SQLite::Statement{*databs, query};
+    stmnt.bind(1, static_cast<std::int64_t>(book_id));
+    stmnt.exec();
+
+    query = R"#(
+        DELETE FROM [favourites]
+            WHERE book_id = ?
+    )#";
+    stmnt = SQLite::Statement{*databs, query};
     stmnt.bind(1, static_cast<std::int64_t>(book_id));
     stmnt.exec();
 }
@@ -433,5 +450,19 @@ void Librarydb::changePassword(std::string& username, std::string& password) {
     SQLite::Statement stmnt(*databs, query);
     stmnt.bind(1, password);
     stmnt.bind(2, username);
+    stmnt.exec();
+}
+
+void Librarydb::makeAdmin(const std::string& username) {
+    unborrowAll(username);
+    unfavouriteAll(username);
+    SQLite::Statement stmnt(*databs, "UPDATE [users] SET [type] = 'Admin' WHERE [username] = ?");
+    stmnt.bind(1, username);
+    stmnt.exec();
+}
+
+void Librarydb::demoteAdmin(const std::string& username) {
+    SQLite::Statement stmnt(*databs, "UPDATE [users] SET [type] = 'Regular' WHERE [username] = ?");
+    stmnt.bind(1, username);
     stmnt.exec();
 }
