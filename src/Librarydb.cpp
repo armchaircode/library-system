@@ -307,7 +307,16 @@ void Librarydb::borrow(std::string username, std::size_t book_id) {
 }
 
 void Librarydb::unborrow(std::string username, std::size_t book_id) {
-    SQLite::Statement stmnt(*databs, "DELETE FROM [borrows] WHERE username = ? AND book_id = ?");
+    auto query = R"#(
+        UPDATE [books]
+            SET quantity = quantity + 1
+        WHERE book_id = ?
+    )#";
+    SQLite::Statement stmnt(*databs, query);
+    stmnt.bind(1, static_cast<std::int64_t>(book_id));
+    stmnt.exec();
+
+    stmnt = SQLite::Statement(*databs, "DELETE FROM [borrows] WHERE username = ? AND book_id = ?");
     stmnt.bind(1, username);
     stmnt.bind(2, static_cast<std::int64_t>(book_id));
     stmnt.exec();
