@@ -23,6 +23,7 @@ void Librarydb::init() {
     databs = std::make_unique<SQLite::Database>(db_path, SQLite::OPEN_READWRITE);
     if(not databs->tableExists("users"))
         makeSchema();
+    databs->exec("PRAGMA foreign_keys = ON");
 }
 
 void Librarydb::makeSchema(){
@@ -221,7 +222,6 @@ void Librarydb::addUser(User nuser, std::string password){
 
 void Librarydb::removeUser(std::string username){
     unborrowAll(username);
-    unfavouriteAll(username);
     SQLite::Statement stmnt(*databs, "DELETE FROM [Users] WHERE username = ?");
     stmnt.bind(1, username);
     stmnt.exec();
@@ -256,28 +256,12 @@ void Librarydb::removeBook(std::size_t book_id) {
     SQLite::Statement stmnt{*databs, query};
     stmnt.bind(1, static_cast<std::int64_t>(book_id));
     stmnt.exec();
-
-    query = R"#(
-        DELETE FROM [borrows]
-            WHERE book_id = ?
-    )#";
-    stmnt = SQLite::Statement{*databs, query};
-    stmnt.bind(1, static_cast<std::int64_t>(book_id));
-    stmnt.exec();
-
-    query = R"#(
-        DELETE FROM [favourites]
-            WHERE book_id = ?
-    )#";
-    stmnt = SQLite::Statement{*databs, query};
-    stmnt.bind(1, static_cast<std::int64_t>(book_id));
-    stmnt.exec();
 }
 
 void Librarydb::addFavourite(std::string username, std::size_t book_id) {
     auto query = R"#(
         INSERT INTO [favourites] (username, book_id)
-        VALUES ( ?, ?);
+        VALUES ( ?, ? );
     )#";
 
     SQLite::Statement stmnt(*databs, query);
