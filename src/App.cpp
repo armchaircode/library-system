@@ -416,7 +416,8 @@ void App::adminHome() {
     auto remove_book_button_action = [&] {
         db->removeBook(all_books[all_book_selected].book_id);
         all_books.erase(all_books.begin() + all_book_selected);
-        // TODO: Remove from book menu
+        // Remove from book menu
+        all_book_menu->ChildAt(0)->ChildAt(all_user_selected)->Detach();
     };
     auto remove_book_button = Button("Remove", remove_book_button_action, ButtonOption::Ascii());
 
@@ -424,7 +425,8 @@ void App::adminHome() {
     auto remove_user_button_action = [&] {
         db->removeUser(all_users[all_user_selected].username);
         all_users.erase(all_users.begin() + all_user_selected);
-        //TODO: Remove from the menu
+        //Remove from the menu
+        all_user_menu->ChildAt(0)->ChildAt(all_user_selected)->Detach();
     };
     auto remove_user_button = Button("Remove", remove_user_button_action, ButtonOption::Ascii());
 
@@ -638,8 +640,8 @@ void App::normalHome() {
         ++(*ptr).quantity;
         // delete from borrowed books working copy
         borrowed.erase(borrowed.begin() + borrowed_book_selected);
-        // TODO:
         // Remove from the menu
+        borrowed_menu->ChildAt(0)->ChildAt(borrowed_book_selected)->Detach();
     };
     auto unborrow_button = Button("Return", unborrow_button_action, ButtonOption::Ascii());
 
@@ -648,8 +650,8 @@ void App::normalHome() {
         db->removeFavourite(username, favourites[favourite_book_selected].book_id);
         // remove from working copy of favourites
         favourites.erase(favourites.begin() + favourite_book_selected);
-        //TODO:
         // Remove from the favourites menu
+        favourites_menu->ChildAt(0)->ChildAt(favourite_book_selected)->Detach();
     };
     auto unlike_button = Button("Unlike", unlike_button_action, ButtonOption::Ascii());
 
