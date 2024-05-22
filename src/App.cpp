@@ -693,11 +693,15 @@ void App::normalHome() {
                     Renderer([] { return filler();}),
                     unborrow_button,
                     Button("Return all", [&] {
-                        //TODO:
-                        /*
                         db->unborrowAll(username);
+                        for (auto bok : borrowed) {
+                            auto ptr = std::ranges::find_if(all_books, [&](const Book& book) {
+                                return book.book_id == bok.book_id;
+                            });
+                            ++(*ptr).quantity;
+                        }
                         borrowed.clear();
-                        */
+                        borrowed_menu->ChildAt(0)->DetachAllChildren();
                     }, ButtonOption::Ascii()),
                     Renderer([] { return filler();})
                 })
