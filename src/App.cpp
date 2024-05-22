@@ -338,14 +338,11 @@ void App::adminHome() {
             db->addBook(book);
             auto indx = all_books.size();
             all_books.push_back(book);
-            /*
-            //TODO: This part is not working
-            all_book_menu->Add(
+            all_book_menu->ChildAt(0)->Add(
                 MenuEntry(book.author + "_" + book.title) | Maybe([&, indx] {
                     return searchString.empty() || isSearchResult(all_books[indx], searchString);
                 })
             );
-            */
 
             // show success message
             flip(add_book_successfull);
@@ -605,7 +602,7 @@ void App::normalHome() {
 
         auto indx = borrowed.size();
         borrowed.push_back(all_books[all_book_selected]);
-        borrowed_menu->Add(
+        borrowed_menu->ChildAt(0)->Add(
             MenuEntry(borrowed[indx].author + "_" + borrowed[indx].title) | Maybe([&, indx] {
                 return searchString.empty() || isSearchResult(borrowed[indx], searchString);
             })
@@ -623,7 +620,7 @@ void App::normalHome() {
 
         auto indx = favourites.size();
         favourites.push_back(all_books[all_book_selected]);
-        favourites_menu->Add(
+        favourites_menu->ChildAt(0)->Add(
             MenuEntry(favourites[indx].author + "_" + favourites[indx].title) | Maybe([&, indx] {
                 return searchString.empty() || isSearchResult(favourites[indx], searchString);
             })
