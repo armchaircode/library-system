@@ -260,28 +260,28 @@ void App::adminHome() {
     // All books main menu item
     int all_book_selected = 0;
     auto all_book_menu = Container::Vertical({}, &all_book_selected);
-    if (not all_books.empty()) {
-        for(int i = 0; i<all_books.size(); ++i){
-            all_book_menu->Add(
-                MenuEntry(all_books[i].author + "_" + all_books[i].title) | Maybe([&, i] {
-                    return searchString.empty() || isSearchResult(all_books[i], searchString);
-                })
-            );
-        }
+
+    for(int i = 0; i<all_books.size(); ++i){
+        all_book_menu->Add(
+            MenuEntry(all_books[i].author + "_" + all_books[i].title) | Maybe([&, i] {
+                return searchString.empty() || isSearchResult(all_books[i], searchString);
+            })
+        );
     }
+
     all_book_menu |= size(ftxui::WIDTH, ftxui::EQUAL, entryMenuSize);
 
     int all_user_selected = 0;
     auto all_user_menu = Container::Vertical({}, &all_user_selected);
-    if (not all_users.empty()) {
-        for(int i = 0; i<all_users.size(); ++i){
-            all_user_menu->Add(
-                MenuEntry(all_users[i].username + "_" + all_users[i].email) | Maybe([&, i] {
-                    return searchString.empty() || isSearchResult(all_users[i], searchString);
-                })
-            );
-        }
+
+    for(int i = 0; i<all_users.size(); ++i){
+        all_user_menu->Add(
+            MenuEntry(all_users[i].username + "_" + all_users[i].email) | Maybe([&, i] {
+                return searchString.empty() || isSearchResult(all_users[i], searchString);
+            })
+        );
     }
+
     all_user_menu |= size(ftxui::WIDTH, ftxui::EQUAL, entryMenuSize);
 
     // search Area container creator
@@ -437,6 +437,7 @@ void App::adminHome() {
     auto revoke_privelege_button_action = [&] {
         db->demoteAdmin(all_users[all_user_selected].username);
         all_users[all_user_selected].type = UserClass::NORMAL;
+        // If an admin demoted himself, logout because he is no longer an admin
         if (all_users[all_user_selected].username == active_user->username) {
             active_user = nullptr;
             screen.Exit();
@@ -547,43 +548,43 @@ void App::normalHome() {
     // All books main menu item
     int all_book_selected = 0;
     auto all_book_menu = Container::Vertical({}, &all_book_selected);
-    if (not all_books.empty()) {
-        for(int i = 0; i<all_books.size(); ++i){
-            all_book_menu->Add(
-                MenuEntry(all_books[i].author + "_" + all_books[i].title) | Maybe([&, i] {
-                    return searchString.empty() || isSearchResult(all_books[i], searchString);
-                })
-            );
-        }
+
+    for(int i = 0; i<all_books.size(); ++i){
+        all_book_menu->Add(
+            MenuEntry(all_books[i].author + "_" + all_books[i].title) | Maybe([&, i] {
+                return searchString.empty() || isSearchResult(all_books[i], searchString);
+            })
+        );
     }
+
     all_book_menu |= size(ftxui::WIDTH, ftxui::EQUAL, entryMenuSize);
 
     // Favourite books main menu item
     int favourite_book_selected = 0;
     auto favourites_menu = Container::Vertical({}, &favourite_book_selected);
-    if (not favourites.empty()) {
-        for(int i = 0; i<favourites.size(); ++i){
-            favourites_menu->Add(
-                MenuEntry(favourites[i].author + "_" + favourites[i].title) | Maybe([&, i] {
-                    return searchString.empty() || isSearchResult(favourites[i], searchString);
-                })
-            );
-        }
+
+    for(int i = 0; i<favourites.size(); ++i){
+        favourites_menu->Add(
+            MenuEntry(favourites[i].author + "_" + favourites[i].title) | Maybe([&, i] {
+                return searchString.empty() || isSearchResult(favourites[i], searchString);
+            })
+        );
     }
+
    favourites_menu |= size(ftxui::WIDTH, ftxui::EQUAL, entryMenuSize);
 
     // borrowed books main manu item
     int borrowed_book_selected = 0;
     auto borrowed_menu = Container::Vertical({}, &borrowed_book_selected);
-    if (not borrowed.empty()) {
-        for(int i = 0; i<borrowed.size(); ++i) {
-            borrowed_menu->Add(
-                MenuEntry(borrowed[i].author + "_" + borrowed[i].title) | Maybe([&, i] {
-                    return searchString.empty() || isSearchResult(borrowed[i], searchString);
-                })
-            );
-        }
+
+    for(int i = 0; i<borrowed.size(); ++i) {
+        borrowed_menu->Add(
+            MenuEntry(borrowed[i].author + "_" + borrowed[i].title) | Maybe([&, i] {
+                return searchString.empty() || isSearchResult(borrowed[i], searchString);
+            })
+        );
     }
+
     borrowed_menu |= size(ftxui::WIDTH, ftxui::EQUAL, entryMenuSize);
 
     // search Area container creator
