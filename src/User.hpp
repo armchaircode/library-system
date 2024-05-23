@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -14,4 +15,5 @@ struct User {
     UserClass type;
 };
 
-typedef std::vector<User> Users;
+typedef std::shared_ptr<User> UserPtr;
+typedef std::vector<UserPtr> Users;

@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 
 struct Book {
     std::size_t book_id;
@@ -15,4 +16,5 @@ struct Book {
     double rating;
 };
 
-typedef std::vector<Book> BookStack;
+typedef std::shared_ptr<Book> BookPtr;
+typedef std::vector<BookPtr> BookStack;

@@ -30,8 +30,8 @@ class App {
         ftxui::Component bookDetail(const BookStack& books, const int& selector);
         ftxui::Component userDetail(const Users& users, const int& selector);
         ftxui::Component label(const std::string txt);
-        bool isSearchResult(const Book& book, const std::string& searchString);
-        bool isSearchResult(const User& usr, const std::string& searchString);
+        bool isSearchResult(const BookPtr& book, const std::string& searchString);
+        bool isSearchResult(const UserPtr& usr, const std::string& searchString);
         ftxui::Component accountMgmtScreen(std::string& new_password, bool& password_change_success, bool& deleting_account);
 };
 

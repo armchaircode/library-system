@@ -72,7 +72,7 @@ void App::attemptRestore() {
         return;
     }
     else{
-        active_user = std::make_unique<User>(usr.value());
+        active_user = std::make_unique<User>(*usr.value());
     }
 }
 
@@ -156,7 +156,7 @@ void App::login() {
 
         // save sign-up info and set active_user
         auto usr = User{email, signup_username, UserClass::NORMAL};
-        db->addUser(usr, signup_password);
+        db->addUser(std::make_shared<User>(usr), signup_password);
         // signed up
         signup_ok = false;
         signup_password.clear();
@@ -178,7 +178,7 @@ void App::login() {
             // loged in
             login_password.clear();
             login_username.clear();
-            active_user = std::make_unique<User>(usr.value());
+            active_user = std::make_unique<User>(*usr.value());
             saveSession();
             home();
         }
@@ -263,7 +263,7 @@ void App::adminHome() {
 
     for(int i = 0; i<all_books.size(); ++i){
         all_book_menu->Add(
-            MenuEntry(all_books[i].author + "_" + all_books[i].title) | Maybe([&, i] {
+            MenuEntry(all_books[i]->author + "_" + all_books[i]->title) | Maybe([&, i] {
                 return searchString.empty() || isSearchResult(all_books[i], searchString);
             })
         );
@@ -276,7 +276,7 @@ void App::adminHome() {
 
     for(int i = 0; i<all_users.size(); ++i){
         all_user_menu->Add(
-            MenuEntry(all_users[i].username + "_" + all_users[i].email) | Maybe([&, i] {
+            MenuEntry(all_users[i]->username + "_" + all_users[i]->email) | Maybe([&, i] {
                 return searchString.empty() || isSearchResult(all_users[i], searchString);
             })
         );
@@ -323,23 +323,23 @@ void App::adminHome() {
             }
 
             // all is good
-            Book book;
-            book.book_id = std::hash<std::string>{}(
-                book.title + book.author + std::to_string(std::chrono::system_clock::now().time_since_epoch().count())
+            auto book = std::make_shared<Book>();
+            book->book_id = std::hash<std::string>{}(
+                book->title + book->author + std::to_string(std::chrono::system_clock::now().time_since_epoch().count())
             );
-            book.title = add_book_title;
-            book.author = add_book_author;
-            book.quantity = std::stoi(add_book_quantity);
-            book.publisher = add_book_publisher;
-            add_book_pub_year.empty() ? book.pub_year = -1 : book.pub_year = std::stoi(add_book_pub_year);
-            add_book_edition.empty() ? book.edition = -1 : book.edition = std::stoi(add_book_edition);
+            book->title = add_book_title;
+            book->author = add_book_author;
+            book->quantity = std::stoi(add_book_quantity);
+            book->publisher = add_book_publisher;
+            add_book_pub_year.empty() ? book->pub_year = -1 : book->pub_year = std::stoi(add_book_pub_year);
+            add_book_edition.empty() ? book->edition = -1 : book->edition = std::stoi(add_book_edition);
 
             // add the new book to the database, working copy and menu
             db->addBook(book);
             auto indx = all_books.size();
             all_books.push_back(book);
             all_book_menu->ChildAt(0)->Add(
-                MenuEntry(book.author + "_" + book.title) | Maybe([&, indx] {
+                MenuEntry(book->author + "_" + book->title) | Maybe([&, indx] {
                     return searchString.empty() || isSearchResult(all_books[indx], searchString);
                 })
             );
@@ -411,7 +411,7 @@ void App::adminHome() {
 
     // Book management buttons
     auto remove_book_button_action = [&] {
-        db->removeBook(all_books[all_book_selected].book_id);
+        db->removeBook(all_books[all_book_selected]->book_id);
         all_books.erase(all_books.begin() + all_book_selected);
         // Remove from book menu
         all_book_menu->ChildAt(0)->ChildAt(all_user_selected)->Detach();
@@ -420,7 +420,7 @@ void App::adminHome() {
 
     // User Management buttons
     auto remove_user_button_action = [&] {
-        db->removeUser(all_users[all_user_selected].username);
+        db->removeUser(all_users[all_user_selected]->username);
         all_users.erase(all_users.begin() + all_user_selected);
         //Remove from the menu
         all_user_menu->ChildAt(0)->ChildAt(all_user_selected)->Detach();
@@ -428,23 +428,23 @@ void App::adminHome() {
     auto remove_user_button = Button("Remove", remove_user_button_action, ButtonOption::Ascii());
 
     auto grant_privelege_button_action = [&] {
-        db->makeAdmin(all_users[all_user_selected].username);
-        all_users[all_user_selected].type = UserClass::ADMIN;
+        db->makeAdmin(all_users[all_user_selected]->username);
+        all_users[all_user_selected]->type = UserClass::ADMIN;
     };
     auto grant_privelege_button = Button("Grant Admin Rights", grant_privelege_button_action, ButtonOption::Ascii()) |
-        Maybe([&] { return all_users[all_user_selected].type == UserClass::NORMAL; });
+        Maybe([&] { return all_users[all_user_selected]->type == UserClass::NORMAL; });
 
     auto revoke_privelege_button_action = [&] {
-        db->demoteAdmin(all_users[all_user_selected].username);
-        all_users[all_user_selected].type = UserClass::NORMAL;
+        db->demoteAdmin(all_users[all_user_selected]->username);
+        all_users[all_user_selected]->type = UserClass::NORMAL;
         // If an admin demoted himself, logout because he is no longer an admin
-        if (all_users[all_user_selected].username == active_user->username) {
+        if (all_users[all_user_selected]->username == active_user->username) {
             active_user = nullptr;
             screen.Exit();
         }
     };
     auto revoke_privelege_button = Button("Revoke Admin Rights", revoke_privelege_button_action, ButtonOption::Ascii()) |
-        Maybe([&] { return all_users[all_user_selected].type == UserClass::ADMIN; });
+        Maybe([&] { return all_users[all_user_selected]->type == UserClass::ADMIN; });
 
 
     std::string new_password;
@@ -528,20 +528,32 @@ void App::adminHome() {
 
 void App::normalHome() {
     using namespace ftxui;
+
     std::string username = active_user->username;
 
     BookStack all_books = db->getAllBooks();
-    BookStack borrowed = db->getBorrowed(username);
-    BookStack favourites = db->getFavourites(username);
 
-    auto findBook = [&](const std::size_t book_id) -> Book& {
-        auto ptr = std::ranges::find_if(all_books, [&](const Book& book) {
-            return book.book_id == book_id;
+    auto findBook = [&](const std::size_t book_id) -> BookPtr {
+        auto ptr = std::ranges::find_if(all_books, [&](const BookPtr& book) {
+            return book->book_id == book_id;
         });
 
         return *ptr;
     };
 
+    BookStack borrowed_books = db->getBorrowed(username);
+    BookStack borrowed;
+    for(auto book : borrowed_books) {
+        borrowed.push_back(findBook(book->book_id));
+    }
+    borrowed_books.clear();
+
+    BookStack favourites_books = db->getFavourites(username);
+    BookStack favourites;
+    for (auto book : favourites_books) {
+        favourites.push_back(findBook(book->book_id));
+    }
+    favourites_books.clear();
 
     std::string searchString;
     std::vector<std::string> main_selection {
@@ -561,7 +573,7 @@ void App::normalHome() {
 
     for(int i = 0; i<all_books.size(); ++i){
         all_book_menu->Add(
-            MenuEntry(all_books[i].author + "_" + all_books[i].title) | Maybe([&, i] {
+            MenuEntry(all_books[i]->author + "_" + all_books[i]->title) | Maybe([&, i] {
                 return searchString.empty() || isSearchResult(all_books[i], searchString);
             })
         );
@@ -575,7 +587,7 @@ void App::normalHome() {
 
     for(int i = 0; i<favourites.size(); ++i){
         favourites_menu->Add(
-            MenuEntry(favourites[i].author + "_" + favourites[i].title) | Maybe([&, i] {
+            MenuEntry(favourites[i]->author + "_" + favourites[i]->title) | Maybe([&, i] {
                 return searchString.empty() || isSearchResult(favourites[i], searchString);
             })
         );
@@ -589,7 +601,7 @@ void App::normalHome() {
 
     for(int i = 0; i<borrowed.size(); ++i) {
         borrowed_menu->Add(
-            MenuEntry(borrowed[i].author + "_" + borrowed[i].title) | Maybe([&, i] {
+            MenuEntry(borrowed[i]->author + "_" + borrowed[i]->title) | Maybe([&, i] {
                 return searchString.empty() || isSearchResult(borrowed[i], searchString);
             })
         );
@@ -607,12 +619,12 @@ void App::normalHome() {
     };
 
     auto borrow_button_action = [&] {
-        Book *book;
+        BookPtr book;
         if (main_menu_selected == 0) {
-            book = &all_books[all_book_selected];
+            book = all_books[all_book_selected];
         }
         else {
-            book = &favourites[favourite_book_selected];
+            book = favourites[favourite_book_selected];
         }
 
         try {
@@ -625,24 +637,18 @@ void App::normalHome() {
         }
 
         // one borrowed, minus one from available books
-        if (main_menu_selected == 2) {
-            auto bok = findBook(book->book_id);
-            --bok.quantity;
-        }
-        else {
-            --book->quantity;
-        }
+        --book->quantity;
 
         auto indx = borrowed.size();
-        borrowed.push_back(*book);
+        borrowed.push_back(book);
         borrowed_menu->ChildAt(0)->Add(
-            MenuEntry(borrowed[indx].author + "_" + borrowed[indx].title) | Maybe([&, indx] {
+            MenuEntry(borrowed[indx]->author + "_" + borrowed[indx]->title) | Maybe([&, indx] {
                 return searchString.empty() || isSearchResult(borrowed[indx], searchString);
             })
         );
     };
-    auto isBorrowed = [&](const Book& book) -> bool {
-        return std::ranges::any_of(borrowed, [&](const Book& bok) { return book.book_id == bok.book_id; });
+    auto isBorrowed = [&](const BookPtr& book) -> bool {
+        return std::ranges::any_of(borrowed, [&](const BookPtr& bok) { return book->book_id == bok->book_id; });
     };
 
     auto borrow_button = Button("Borrow", borrow_button_action, ButtonOption::Ascii()) | Renderer([&](Element borrow) {
@@ -655,12 +661,12 @@ void App::normalHome() {
     });
 
     auto like_button_action = [&] {
-        Book *book;
+        BookPtr book;
         if (main_menu_selected == 0) {
-            book = &all_books[all_book_selected];
+            book = all_books[all_book_selected];
         }
         else {
-            book = &borrowed[borrowed_book_selected];
+            book = borrowed[borrowed_book_selected];
         }
 
         try {
@@ -673,16 +679,16 @@ void App::normalHome() {
         }
 
         auto indx = favourites.size();
-        favourites.push_back(*book);
+        favourites.push_back(book);
         favourites_menu->ChildAt(0)->Add(
-            MenuEntry(favourites[indx].author + "_" + favourites[indx].title) | Maybe([&, indx] {
+            MenuEntry(favourites[indx]->author + "_" + favourites[indx]->title) | Maybe([&, indx] {
                 return searchString.empty() || isSearchResult(favourites[indx], searchString);
             })
         );
     };
 
-    auto isFavourite = [&](const Book& book) -> bool {
-        return std::ranges::any_of(favourites, [&](const Book& bok) { return book.book_id == bok.book_id; });
+    auto isFavourite = [&](const BookPtr& book) -> bool {
+        return std::ranges::any_of(favourites, [&](const BookPtr& bok) { return book->book_id == bok->book_id; });
     };
 
     auto like_button = Button("Like", like_button_action, ButtonOption::Ascii()) | Renderer([&](Element like) {
@@ -695,10 +701,10 @@ void App::normalHome() {
     });
 
     auto unborrow_button_action = [&] {
-        db->unborrow(username, borrowed[borrowed_book_selected].book_id);
+        db->unborrow(username, borrowed[borrowed_book_selected]->book_id);
 
-        auto book = findBook(borrowed[borrowed_book_selected].book_id);
-        ++book.quantity;
+        auto book = findBook(borrowed[borrowed_book_selected]->book_id);
+        ++book->quantity;
 
         // delete from borrowed books working copy
         borrowed.erase(borrowed.begin() + borrowed_book_selected);
@@ -709,7 +715,7 @@ void App::normalHome() {
 
     auto unlike_button_action = [&] {
         // remove from database
-        db->removeFavourite(username, favourites[favourite_book_selected].book_id);
+        db->removeFavourite(username, favourites[favourite_book_selected]->book_id);
         // remove from working copy of favourites
         favourites.erase(favourites.begin() + favourite_book_selected);
         // Remove from the favourites menu
@@ -835,8 +841,9 @@ void App::normalHome() {
 }
 
 void App::home() {
-    if(active_user->type == UserClass::NORMAL)
+    if(active_user->type == UserClass::NORMAL){
         normalHome();
+    }
     else {
         adminHome();
     }
@@ -847,34 +854,34 @@ ftxui::Component App::bookDetail(const BookStack& books, const int& selector) {
 
     return Container::Vertical({
         Renderer([&] {
-            return text("Titile: " + books[selector].title);
+            return text("Titile: " + books[selector]->title);
         }),
         Renderer([&] {
-            return text("Author: " + books[selector].author);
+            return text("Author: " + books[selector]->author);
         }),
         Renderer([&] {
-            return text("Publisher: " + books[selector].publisher);
-        }) | Maybe([&] { return ! books[selector].publisher.empty(); }),
+            return text("Publisher: " + books[selector]->publisher);
+        }) | Maybe([&] { return ! books[selector]->publisher.empty(); }),
         Renderer([&] {
-            return text("Pub. Year: " + std::to_string(books[selector].pub_year));
-        }) | Maybe([&] { return books[selector].pub_year > 0; }),
+            return text("Pub. Year: " + std::to_string(books[selector]->pub_year));
+        }) | Maybe([&] { return books[selector]->pub_year > 0; }),
         Renderer([&] {
-            return text("Edition: " + std::to_string(books[selector].edition));
-        }) | Maybe([&] { return books[selector].edition > 0; }),
+            return text("Edition: " + std::to_string(books[selector]->edition));
+        }) | Maybe([&] { return books[selector]->edition > 0; }),
         Renderer([&] {
-            return text("Rating: " + std::to_string(books[selector].rating).substr(0,3));
-        }) | Maybe([&] { return books[selector].rating >= 0; }),
+            return text("Rating: " + std::to_string(books[selector]->rating).substr(0,3));
+        }) | Maybe([&] { return books[selector]->rating >= 0; }),
         Renderer([&] {
             return (active_user->type == UserClass::NORMAL)
-                ? (text("Availablity: " + std::string(books[selector].quantity > 0 ? "Available" : "Not Available")))
-                : text("Quantity: " + std::to_string(books[selector].quantity));
+                ? (text("Availablity: " + std::string(books[selector]->quantity > 0 ? "Available" : "Not Available")))
+                : text("Quantity: " + std::to_string(books[selector]->quantity));
         }),
         Renderer([&] {
             return vbox({
                 text("Description") | bold,
-                paragraph(books[selector].description)
+                paragraph(books[selector]->description)
             });
-        }) | Maybe([&] { return ! books[selector].description.empty(); })
+        }) | Maybe([&] { return ! books[selector]->description.empty(); })
     });
 }
 
@@ -890,27 +897,27 @@ ftxui::Component App::userDetail(const Users& users, const int& selector) {
 
     return Container::Vertical({
         Renderer([&] {
-            return text("Username: " + users[selector].username);
+            return text("Username: " + users[selector]->username);
         }),
         Renderer([&] {
-            return text("Email: " + users[selector].email);
+            return text("Email: " + users[selector]->email);
         }),
         Renderer([&] {
             return text(std::string("Category: ") +
-                        (users[selector].type == UserClass::NORMAL ? "Regular" : "Admin"));
+                        (users[selector]->type == UserClass::NORMAL ? "Regular" : "Admin"));
         })
     });
 }
 
 
-bool App::isSearchResult(const Book& book, const std::string& searchString) {
+bool App::isSearchResult(const BookPtr& book, const std::string& searchString) {
     std::regex pattern {".*" + searchString + ".*", std::regex_constants::icase};
-    return std::regex_match(book.title, pattern) || std::regex_match(book.author, pattern);
+    return std::regex_match(book->title, pattern) || std::regex_match(book->author, pattern);
 }
 
-bool App::isSearchResult(const User& usr, const std::string& searchString) {
+bool App::isSearchResult(const UserPtr& usr, const std::string& searchString) {
     std::regex pattern {".*" + searchString + ".*", std::regex_constants::icase};
-    return std::regex_match(usr.username, pattern) || std::regex_match(usr.email, pattern);
+    return std::regex_match(usr->username, pattern) || std::regex_match(usr->email, pattern);
 }
 
 ftxui::Component App::label(const std::string txt) {

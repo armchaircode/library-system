@@ -1,6 +1,5 @@
 #include "App.hpp"
 #include "Librarydb.hpp"
-#include "SQLiteCpp/Exception.h"
 
 #include <iostream>
 #include <cstdlib>
