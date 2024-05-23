@@ -648,7 +648,7 @@ void App::normalHome() {
         );
     };
     auto isBorrowed = [&](const BookPtr& book) -> bool {
-        return std::ranges::any_of(borrowed, [&](const BookPtr& bok) { return book->book_id == bok->book_id; });
+        return std::ranges::any_of(borrowed, [&](const BookPtr& bok) { return book == bok; });
     };
 
     auto borrow_button = Button("Borrow", borrow_button_action, ButtonOption::Ascii()) | Renderer([&](Element borrow) {
@@ -688,7 +688,7 @@ void App::normalHome() {
     };
 
     auto isFavourite = [&](const BookPtr& book) -> bool {
-        return std::ranges::any_of(favourites, [&](const BookPtr& bok) { return book->book_id == bok->book_id; });
+        return std::ranges::any_of(favourites, [&](const BookPtr& bok) { return book == bok; });
     };
 
     auto like_button = Button("Like", like_button_action, ButtonOption::Ascii()) | Renderer([&](Element like) {
@@ -703,8 +703,7 @@ void App::normalHome() {
     auto unborrow_button_action = [&] {
         db->unborrow(username, borrowed[borrowed_book_selected]->book_id);
 
-        auto book = findBook(borrowed[borrowed_book_selected]->book_id);
-        ++book->quantity;
+        ++borrowed[borrowed_book_selected]->quantity;
 
         // delete from borrowed books working copy
         borrowed.erase(borrowed.begin() + borrowed_book_selected);
