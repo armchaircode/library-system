@@ -598,7 +598,14 @@ void App::normalHome() {
     };
 
     auto borrow_button_action = [&] {
-        db->borrow(username, all_books[all_book_selected].book_id);
+        try {
+            db->borrow(username, all_books[all_book_selected].book_id);
+        }
+        catch(const SQLite::Exception& e){
+            //TODO: if UNIQUE constraint error, return. Else throw.
+            //e.getErrorCode();
+            return;
+        }
         // one borrowed, minus one from available books
         --all_books[all_book_selected].quantity;
 
@@ -610,15 +617,28 @@ void App::normalHome() {
             })
         );
     };
+    auto isBorrowed = [&](const Book& book) -> bool {
+        return std::ranges::any_of(borrowed, [&](const Book& bok) { return book.book_id == bok.book_id; });
+    };
 
-    auto borrow_button = Button("Borrow", borrow_button_action, ButtonOption::Ascii()) | Maybe([&] {
-        return std::ranges::none_of(borrowed, [&](const Book& book) {
-                return book.book_id == all_books[all_book_selected].book_id; })
-            && all_books[all_book_selected].quantity > 0;
+    auto borrow_button = Button("Borrow", borrow_button_action, ButtonOption::Ascii()) | Renderer([&](Element borrow) {
+        if (isBorrowed(all_books[all_book_selected])) {
+            return text("Borrowed ");
+        }
+        else {
+            return std::move(borrow);
+        }
     });
 
     auto like_button_action = [&] {
-        db->addFavourite(username, all_books[all_book_selected].book_id);
+        try {
+            db->addFavourite(username, all_books[all_book_selected].book_id);
+        }
+        catch(const SQLite::Exception& e){
+            //TODO: if UNIQUE constraint error, return. Else throw.
+            //e.getErrorCode();
+            return;
+        }
 
         auto indx = favourites.size();
         favourites.push_back(all_books[all_book_selected]);
@@ -628,7 +648,19 @@ void App::normalHome() {
             })
         );
     };
-    auto like_button = Button("Like", like_button_action, ButtonOption::Ascii());
+
+    auto isFavourite = [&](const Book& book) -> bool {
+        return std::ranges::any_of(favourites, [&](const Book& bok) { return book.book_id == bok.book_id; });
+    };
+
+    auto like_button = Button("Like", like_button_action, ButtonOption::Ascii()) | Renderer([&](Element like) {
+        if (isFavourite(all_books[all_book_selected])) {
+            return text(" Liked");
+        }
+        else {
+            return std::move(like);
+        }
+    });
 
     auto unborrow_button_action = [&] {
         db->unborrow(username, borrowed[borrowed_book_selected].book_id);
@@ -637,6 +669,7 @@ void App::normalHome() {
             return book.book_id == borrowed[borrowed_book_selected].book_id;
         });
         ++(*ptr).quantity;
+
         // delete from borrowed books working copy
         borrowed.erase(borrowed.begin() + borrowed_book_selected);
         // Remove from the menu
@@ -693,6 +726,15 @@ void App::normalHome() {
                 Container::Horizontal({
                     Renderer([] { return filler();}),
                     unborrow_button,
+                    Button("Like", like_button_action, ButtonOption::Ascii()) | Renderer([&](Element like) {
+                        if (isFavourite(borrowed[borrowed_book_selected])) {
+                            return text(" Liked");
+                        }
+                        else {
+                            return std::move(like);
+                        }
+                    }),
+                    /*
                     Button("Return all", [&] {
                         db->unborrowAll(username);
                         for (auto bok : borrowed) {
@@ -704,6 +746,7 @@ void App::normalHome() {
                         borrowed.clear();
                         borrowed_menu->ChildAt(0)->DetachAllChildren();
                     }, ButtonOption::Ascii()),
+                    */
                     Renderer([] { return filler();})
                 })
             })
@@ -723,6 +766,14 @@ void App::normalHome() {
                 Container::Horizontal({
                     Renderer([] { return filler();}),
                     unlike_button,
+                    Button("Borrow", borrow_button_action, ButtonOption::Ascii()) | Renderer([&](Element borrow) {
+                        if (isBorrowed(favourites[favourite_book_selected])) {
+                            return text(" Borrowed");
+                        }
+                        else {
+                            return std::move(borrow);
+                        }
+                    }),
                     Renderer([] { return filler();})
                 })
             })
