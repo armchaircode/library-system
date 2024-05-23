@@ -797,7 +797,9 @@ ftxui::Component App::bookDetail(const BookStack& books, const int& selector) {
             return text("Rating: " + std::to_string(books[selector].rating).substr(0,3));
         }) | Maybe([&] { return books[selector].rating >= 0; }),
         Renderer([&] {
-            return text("Availablity: " + std::string(books[selector].quantity > 0 ? "Available" : "Not Available"));
+            return (active_user->type == UserClass::NORMAL)
+                ? (text("Availablity: " + std::string(books[selector].quantity > 0 ? "Available" : "Not Available")))
+                : text("Quantity: " + std::to_string(books[selector].quantity));
         }),
         Renderer([&] {
             return vbox({
