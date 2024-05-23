@@ -534,6 +534,15 @@ void App::normalHome() {
     BookStack borrowed = db->getBorrowed(username);
     BookStack favourites = db->getFavourites(username);
 
+    auto findBook = [&](const std::size_t book_id) -> Book& {
+        auto ptr = std::ranges::find_if(all_books, [&](const Book& book) {
+            return book.book_id == book_id;
+        });
+
+        return *ptr;
+    };
+
+
     std::string searchString;
     std::vector<std::string> main_selection {
         "All books",
@@ -598,19 +607,34 @@ void App::normalHome() {
     };
 
     auto borrow_button_action = [&] {
+        Book *book;
+        if (main_menu_selected == 0) {
+            book = &all_books[all_book_selected];
+        }
+        else {
+            book = &favourites[favourite_book_selected];
+        }
+
         try {
-            db->borrow(username, all_books[all_book_selected].book_id);
+            db->borrow(username, book->book_id);
         }
         catch(const SQLite::Exception& e){
             //TODO: if UNIQUE constraint error, return. Else throw.
             //e.getErrorCode();
             return;
         }
+
         // one borrowed, minus one from available books
-        --all_books[all_book_selected].quantity;
+        if (main_menu_selected == 2) {
+            auto bok = findBook(book->book_id);
+            --bok.quantity;
+        }
+        else {
+            --book->quantity;
+        }
 
         auto indx = borrowed.size();
-        borrowed.push_back(all_books[all_book_selected]);
+        borrowed.push_back(*book);
         borrowed_menu->ChildAt(0)->Add(
             MenuEntry(borrowed[indx].author + "_" + borrowed[indx].title) | Maybe([&, indx] {
                 return searchString.empty() || isSearchResult(borrowed[indx], searchString);
@@ -631,8 +655,16 @@ void App::normalHome() {
     });
 
     auto like_button_action = [&] {
+        Book *book;
+        if (main_menu_selected == 0) {
+            book = &all_books[all_book_selected];
+        }
+        else {
+            book = &borrowed[borrowed_book_selected];
+        }
+
         try {
-            db->addFavourite(username, all_books[all_book_selected].book_id);
+            db->addFavourite(username, book->book_id);
         }
         catch(const SQLite::Exception& e){
             //TODO: if UNIQUE constraint error, return. Else throw.
@@ -641,7 +673,7 @@ void App::normalHome() {
         }
 
         auto indx = favourites.size();
-        favourites.push_back(all_books[all_book_selected]);
+        favourites.push_back(*book);
         favourites_menu->ChildAt(0)->Add(
             MenuEntry(favourites[indx].author + "_" + favourites[indx].title) | Maybe([&, indx] {
                 return searchString.empty() || isSearchResult(favourites[indx], searchString);
@@ -664,11 +696,9 @@ void App::normalHome() {
 
     auto unborrow_button_action = [&] {
         db->unborrow(username, borrowed[borrowed_book_selected].book_id);
-        // one book returned, add one to available number
-        auto ptr = std::ranges::find_if(all_books, [&](const Book& book) {
-            return book.book_id == borrowed[borrowed_book_selected].book_id;
-        });
-        ++(*ptr).quantity;
+
+        auto book = findBook(borrowed[borrowed_book_selected].book_id);
+        ++book.quantity;
 
         // delete from borrowed books working copy
         borrowed.erase(borrowed.begin() + borrowed_book_selected);
@@ -734,19 +764,6 @@ void App::normalHome() {
                             return std::move(like);
                         }
                     }),
-                    /*
-                    Button("Return all", [&] {
-                        db->unborrowAll(username);
-                        for (auto bok : borrowed) {
-                            auto ptr = std::ranges::find_if(all_books, [&](const Book& book) {
-                                return book.book_id == bok.book_id;
-                            });
-                            ++(*ptr).quantity;
-                        }
-                        borrowed.clear();
-                        borrowed_menu->ChildAt(0)->DetachAllChildren();
-                    }, ButtonOption::Ascii()),
-                    */
                     Renderer([] { return filler();})
                 })
             })
