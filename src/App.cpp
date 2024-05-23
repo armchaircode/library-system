@@ -508,6 +508,7 @@ void App::adminHome() {
         Container::Horizontal({
             Button("Logout", [&]{
                 clearSession();
+                main_tab->DetachAllChildren();
                 active_user = nullptr;
                 screen.Exit();
             }, ButtonOption::Ascii()),
@@ -747,6 +748,7 @@ void App::normalHome() {
         Container::Horizontal({
             Button("Logout", [&]{
                 clearSession();
+                main_tab->DetachAllChildren();
                 active_user = nullptr;
                 screen.Exit();
             }, ButtonOption::Ascii()),
