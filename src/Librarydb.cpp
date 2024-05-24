@@ -8,7 +8,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -104,7 +103,7 @@ void Librarydb::makeSchema(){
     }
 }
 
-std::optional<UserPtr> Librarydb::restoreSession(std::size_t session){
+UserPtr Librarydb::restoreSession(std::size_t session){
     auto query = R"#(
         SELECT [users].[username], [email], [type]
             FROM [users] JOIN [sessions]
@@ -155,7 +154,7 @@ BookStack Librarydb::getFavourites(std::string username) {
 
     BookStack books;
     while (stmnt.executeStep()) {
-        books.push_back(extractBookInfo(stmnt).value());
+        books.push_back(extractBookInfo(stmnt));
     }
 
     return std::move(books);
@@ -174,7 +173,7 @@ BookStack Librarydb::getBorrowed(std::string username) {
 
     BookStack books;
     while (stmnt.executeStep()) {
-        books.push_back(extractBookInfo(stmnt).value());
+        books.push_back(extractBookInfo(stmnt));
     }
     return std::move(books);
 }
@@ -190,14 +189,14 @@ Users Librarydb::getAllUsers() {
 
     Users usrs;
     while(stmnt.executeStep()) {
-        usrs.push_back(extractUserInfo(stmnt).value());
+        usrs.push_back(extractUserInfo(stmnt));
     }
 
     return std::move(usrs);
 }
 
 
-std::optional<UserPtr> Librarydb::extractUserInfo(const SQLite::Statement& stmnt) {
+UserPtr Librarydb::extractUserInfo(const SQLite::Statement& stmnt) {
     if (not stmnt.hasRow())
         return {};
 
@@ -357,7 +356,7 @@ BookStack Librarydb::getAllBooks() {
 
     BookStack books;
     while (stmnt.executeStep()) {
-        books.push_back(extractBookInfo(stmnt).value());
+        books.push_back(extractBookInfo(stmnt));
     }
     return std::move(books);
 }
@@ -374,13 +373,13 @@ BookPtr Librarydb::getBook(const std::size_t book_id) {
     stmnt.bind(1, static_cast<std::int64_t>(book_id));
 
     if (stmnt.executeStep()) {
-        return extractBookInfo(stmnt).value();
+        return extractBookInfo(stmnt);
     }
 
     return {};
 }
 
-std::optional<UserPtr> Librarydb::authenticate(const std::string username, const std::string password) {
+UserPtr Librarydb::authenticate(const std::string username, const std::string password) {
     SQLite::Statement stmnt{*databs, "SELECT [username], [email], [type] FROM [Users] WHERE username = ? AND password = ?"};
     stmnt.bind(1, username);
     stmnt.bind(2, password);
@@ -406,7 +405,7 @@ bool Librarydb::emailIsUsed(const std::string& email) {
     return stmnt.executeStep();
 }
 
-std::optional<BookPtr> Librarydb::extractBookInfo(const SQLite::Statement& stmnt) {
+BookPtr Librarydb::extractBookInfo(const SQLite::Statement& stmnt) {
     if(not stmnt.hasRow()) {
         return {};
     }

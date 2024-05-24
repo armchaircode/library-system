@@ -5,10 +5,9 @@
 #include "User.hpp"
 #include "Book.hpp"
 
-#include <cstddef>
-#include <memory>
-#include <optional>
-#include <string>
+#include <cstddef> // size_t
+#include <memory> // make_unique
+#include <string> //string
 
 class Librarydb{
     public:
@@ -35,11 +34,11 @@ class Librarydb{
         void unborrow(const std::string username, const std::size_t book_id);
         void unborrowAll(const std::string username);
 
-        std::optional<UserPtr> restoreSession(std::size_t session);
+        UserPtr restoreSession(std::size_t session);
         void newSession(const std::string username, std::size_t session);
         void clearSession(const std::string username);
 
-        std::optional<UserPtr> authenticate(const std::string username, const std::string password);
+        UserPtr authenticate(const std::string username, const std::string password);
 
         bool usernameExists(const std::string& username);
         bool emailIsUsed(const std::string& email);
@@ -53,8 +52,8 @@ class Librarydb{
         std::string db_path;
         std::unique_ptr<SQLite::Database> databs;
         void makeSchema();
-        std::optional<BookPtr> extractBookInfo(const SQLite::Statement& stmnt);
-        std::optional<UserPtr> extractUserInfo(const SQLite::Statement& stmnt);
+        BookPtr extractBookInfo(const SQLite::Statement& stmnt);
+        UserPtr extractUserInfo(const SQLite::Statement& stmnt);
 };
 
 inline std::unique_ptr<Librarydb> db;

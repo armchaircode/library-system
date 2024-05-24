@@ -10,17 +10,17 @@
 #include "ftxui/dom/elements.hpp"
 #include "ftxui/dom/node.hpp"
 
-#include <algorithm> // all_of, none_of
+#include <algorithm> // all_of, none_of, any_of
 #include <cctype> // isdigit
 #include <chrono> // system_clock
 #include <cstddef> // size_t
 #include <cstdlib> // EXIT_FAILURE, EXIT_SUCCESS
 #include <fstream> // ifstream, ofstream
-#include <ftxui/component/component_options.hpp>
 #include <functional> // hash
 #include <iostream> // cerr
 #include <memory> // make_unique
 #include <exception> // exception
+#include <stdexcept>
 #include <string> // string
 #include <sys/types.h>
 #include <thread> // thread
@@ -67,12 +67,12 @@ void App::writeSessionFile(const std::size_t session) {
 
 void App::attemptRestore() {
     auto usr = db->restoreSession(readSession(session_file));
-    if( !usr){
-        // restore failed, session expired
-        return;
+    if(usr){
+        active_user = std::make_unique<User>(*usr);
     }
     else{
-        active_user = std::make_unique<User>(*usr.value());
+        // restore failed, session expired
+        return;
     }
 }
 
@@ -88,7 +88,7 @@ void flip(bool& flag) {
 void App::saveSession() {
     // Shouldn't be called when there is no active user
     if (not active_user)
-        throw std::exception();
+        throw std::runtime_error{"Asked to save session when there is no active session. This shouldn't be happening!"};
 
     std::size_t session = std::hash<std::string>{}(active_user->username);
     writeSessionFile(session);
@@ -124,7 +124,7 @@ void App::login() {
     }) | Maybe([&] {
             bool show_error = true;
             if ( !signup_username.empty() && signup_username.size() < 4) {
-                signup_error_message = "Username too short!";
+                signup_error_message = "Username is too short!";
             }
             else if ( !signup_username.empty() && db->usernameExists(signup_username)) {
                 signup_error_message = "Username is taken!";
@@ -151,7 +151,7 @@ void App::login() {
     int login_signup_selected = 0;
 
     auto signup_action = [&] {
-        if (! signup_ok)
+        if (not signup_ok)
             return;
 
         // save sign-up info and set active_user
@@ -170,17 +170,17 @@ void App::login() {
 
     auto login_action = [&] {
         auto usr = db->authenticate(login_username, login_password);
-        if (not usr) {
-            login_password.clear();
-            flip(show_failed_authentication);
-            }
-        else {
+        if (usr) {
             // loged in
             login_password.clear();
             login_username.clear();
-            active_user = std::make_unique<User>(*usr.value());
+            active_user = std::make_unique<User>(*usr);
             saveSession();
             home();
+        }
+        else {
+            login_password.clear();
+            flip(show_failed_authentication);
         }
     };
 
@@ -869,7 +869,7 @@ ftxui::Component App::bookDetail(const BookStack& books, const int& selector) {
         }) | Maybe([&] { return books[selector]->edition > 0; }),
         Renderer([&] {
             return text("Rating: " + std::to_string(books[selector]->rating).substr(0,3));
-        }) | Maybe([&] { return books[selector]->rating >= 0; }),
+        }),
         Renderer([&] {
             return (active_user->type == UserClass::NORMAL)
                 ? (text("Availablity: " + std::string(books[selector]->quantity > 0 ? "Available" : "Not Available")))
@@ -886,13 +886,6 @@ ftxui::Component App::bookDetail(const BookStack& books, const int& selector) {
 
 ftxui::Component App::userDetail(const Users& users, const int& selector) {
     using namespace ftxui;
-    if (users.empty()) {
-        return Container::Horizontal({
-            Renderer([] { return filler(); }),
-            Renderer([] { return text("Nothing selected"); }),
-            Renderer([] { return filler(); }),
-        });
-    }
 
     return Container::Vertical({
         Renderer([&] {
