@@ -1,8 +1,8 @@
 #pragma once
 
-#include <memory>
-#include <string>
-#include <vector>
+#include <memory> // shared_ptr
+#include <string> // string
+#include <vector> // vector
 
 enum class UserClass{
     ADMIN,

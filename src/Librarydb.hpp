@@ -1,12 +1,13 @@
 #pragma once
 
-#include "SQLiteCpp/Database.h"
-#include "SQLiteCpp/Statement.h"
 #include "User.hpp"
 #include "Book.hpp"
 
+#include "SQLiteCpp/Database.h"
+#include "SQLiteCpp/Statement.h"
+
 #include <cstddef> // size_t
-#include <memory> // make_unique
+#include <memory> // unique_ptr
 #include <string> //string
 
 class Librarydb{

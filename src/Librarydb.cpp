@@ -1,16 +1,17 @@
 #include "Librarydb.hpp"
 #include "Book.hpp"
+#include "User.hpp"
+
 #include "SQLiteCpp/Exception.h"
 #include "SQLiteCpp/Statement.h"
 #include "SQLiteCpp/Transaction.h"
-#include "User.hpp"
 
-#include <cstddef>
-#include <cstdint>
-#include <memory>
-#include <stdexcept>
-#include <string>
-#include <utility>
+#include <cstddef> // size_t
+#include <cstdint> // int64_t
+#include <memory> // make_shared
+#include <stdexcept> // invalid_argument
+#include <string> // string
+#include <utility> // static_cast
 
 // forward declarations
 

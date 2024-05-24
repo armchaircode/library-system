@@ -7,6 +7,7 @@
 
 #include "ftxui/component/screen_interactive.hpp"
 #include "ftxui/component/component.hpp"
+#include "ftxui/component/component_options.hpp"
 #include "ftxui/dom/elements.hpp"
 #include "ftxui/dom/node.hpp"
 
@@ -28,6 +29,82 @@
 #include <vector> // vector
 
 class Exit : public std::exception {};
+
+ftxui::MenuEntryOption menuEntryOption(){
+    using namespace ftxui;
+    auto option = MenuEntryOption();
+    option.transform = [](const EntryState& state) {
+        Element e;
+        if (state.active) {
+            e = text("> " + state.label) | bold;
+        }
+        if (state.focused) {
+            e = text("< " + state.label + " >") | bold;
+        }
+        if (!state.focused && !state.active) {
+            e = text("  " + state.label);
+        }
+        return e;
+    };
+
+    return std::move(option);
+}
+
+ftxui::MenuOption menuOption() {
+    using namespace ftxui;
+    auto option = MenuOption();
+
+    option.entries_option.transform = [](const EntryState& state) {
+        Element e;
+        if (state.focused) {
+            e = text("> " + state.label);
+        }
+        if (state.active) {
+            e = text("< " + state.label + " >") | bold;
+        }
+        if (!state.focused && !state.active) {
+            e = text("  " + state.label) | dim;
+        }
+        return e;
+    };
+
+    return std::move(option);
+}
+
+ftxui::InputOption inputOption() {
+    using namespace ftxui;
+
+    auto option = InputOption();
+    option.multiline = false;
+
+    option.transform = [](InputState state) {
+        //state.element |= color(Color::White);
+        if (state.is_placeholder) {
+            state.element |= dim;
+        }
+
+        if (state.focused) {
+            state.element |= bgcolor(Color::GrayDark);
+        } else if (state.hovered) {
+            state.element |= bold;
+        }
+
+        return state.element;
+    };
+
+    return std::move(option);
+}
+
+ftxui::InputOption passwordInputOption() {
+    auto option = inputOption();
+    option.password = true;
+
+    return std::move(option);
+}
+
+ftxui::ButtonOption buttonOption() {
+    return ftxui::ButtonOption::Ascii();
+}
 
 int App::run() {
     try {
@@ -184,28 +261,24 @@ void App::login() {
         }
     };
 
-    // input boxes
-    ftxui::InputOption password_option;
-    password_option.password = true;
-
     auto login_screen_container = Container::Vertical({
-        Input(&login_username, "Username") | size(ftxui::WIDTH, ftxui::EQUAL, 40) | border,
-        Input(&login_password, "Password", password_option) | size(ftxui::WIDTH, ftxui::EQUAL, 40) | border,
+        Input(&login_username, "Username", inputOption()) | size(ftxui::WIDTH, ftxui::EQUAL, 40) | border,
+        Input(&login_password, "Password", passwordInputOption()) | size(ftxui::WIDTH, ftxui::EQUAL, 40) | border,
         failed_login,
         Container::Horizontal({
-            Button("Login", login_action, ButtonOption::Ascii()),
-            Button("Quit", [] { throw Exit(); }, ButtonOption::Ascii())
+            Button("Login", login_action, buttonOption()),
+            Button("Quit", [] { throw Exit(); }, buttonOption())
         })
     });
 
     auto signup_screen_container = Container::Vertical({
-        Input(&email, "Email") | size(WIDTH, ftxui::EQUAL, 40) | border,
-        Input(&signup_username, "Username") | size(WIDTH, ftxui::EQUAL, 40) | border,
-        Input(&signup_password, "Password", password_option) | size(WIDTH, ftxui::EQUAL, 40) | ftxui::border,
+        Input(&email, "Email", inputOption()) | size(WIDTH, ftxui::EQUAL, 40) | border,
+        Input(&signup_username, "Username", inputOption()) | size(WIDTH, ftxui::EQUAL, 40) | border,
+        Input(&signup_password, "Password", passwordInputOption()) | size(WIDTH, ftxui::EQUAL, 40) | ftxui::border,
         signup_status,
         Container::Horizontal({
-            Button("Sign Up", signup_action, ButtonOption::Ascii()),
-            Button("Quit", [&] { throw Exit(); }, ButtonOption::Ascii())
+            Button("Sign Up", signup_action, buttonOption()),
+            Button("Quit", [&] { throw Exit(); }, buttonOption())
        })
     });
 
@@ -255,7 +328,7 @@ void App::adminHome() {
 
     // Main manu selector
     int main_menu_selected = 0;
-    auto main_menu = Menu(&main_selection, &main_menu_selected);
+    auto main_menu = Menu(&main_selection, &main_menu_selected, menuOption());
 
     // All books main menu item
     int all_book_selected = 0;
@@ -263,7 +336,7 @@ void App::adminHome() {
 
     for(int i = 0; i<all_books.size(); ++i){
         all_book_menu->Add(
-            MenuEntry(all_books[i]->author + "_" + all_books[i]->title) | Maybe([&, i] {
+            MenuEntry(all_books[i]->author + "_" + all_books[i]->title, menuEntryOption()) | Maybe([&, i] {
                 return searchString.empty() || isSearchResult(all_books[i], searchString);
             })
         );
@@ -276,7 +349,7 @@ void App::adminHome() {
 
     for(int i = 0; i<all_users.size(); ++i){
         all_user_menu->Add(
-            MenuEntry(all_users[i]->username + "_" + all_users[i]->email) | Maybe([&, i] {
+            MenuEntry(all_users[i]->username + "_" + all_users[i]->email, menuEntryOption()) | Maybe([&, i] {
                 return searchString.empty() || isSearchResult(all_users[i], searchString);
             })
         );
@@ -289,7 +362,7 @@ void App::adminHome() {
         return Container::Horizontal({
             Renderer([] { return filler(); }),
             Renderer([] { return text("Search: "); }),
-            Input(&searchString, "  here  ") | size(ftxui::WIDTH, ftxui::EQUAL, 10)
+            Input(&searchString, "  here  ", inputOption()) | size(ftxui::WIDTH, ftxui::EQUAL, 10)
         });
     };
 
@@ -339,7 +412,7 @@ void App::adminHome() {
             auto indx = all_books.size();
             all_books.push_back(book);
             all_book_menu->ChildAt(0)->Add(
-                MenuEntry(book->author + "_" + book->title) | Maybe([&, indx] {
+                MenuEntry(book->author + "_" + book->title, menuEntryOption()) | Maybe([&, indx] {
                     return searchString.empty() || isSearchResult(all_books[indx], searchString);
                 })
             );
@@ -390,13 +463,13 @@ void App::adminHome() {
             }),
             Renderer([]{ return separator(); }),
             Container::Vertical({
-                Input(&add_book_title, "title"),
-                Input(&add_book_author, "author"),
-                Input(&add_book_quantity, "quantity"),
-                Input(&add_book_publisher, "publisher"),
-                Input(&add_book_pub_year, "year"),
-                Input(&add_book_edition, "edition"),
-                Input(&add_book_description, "description")
+                Input(&add_book_title, "title", inputOption()),
+                Input(&add_book_author, "author", inputOption()),
+                Input(&add_book_quantity, "quantity", inputOption()),
+                Input(&add_book_publisher, "publisher", inputOption()),
+                Input(&add_book_pub_year, "year", inputOption()),
+                Input(&add_book_edition, "edition", inputOption()),
+                Input(&add_book_description, "description", inputOption())
             }),
             Renderer([]{ return filler(); })
         }),
@@ -404,7 +477,7 @@ void App::adminHome() {
         Renderer([] { return text("Book added successfully") | color(Color::Green); }) | Maybe(&add_book_successfull),
         Container::Horizontal({
             Renderer([]{ return filler(); }),
-            Button("Add Book", add_book_action, ButtonOption::Ascii()),
+            Button("Add Book", add_book_action, buttonOption()),
             Renderer([]{ return filler(); })
         })
     });
@@ -416,7 +489,7 @@ void App::adminHome() {
         // Remove from book menu
         all_book_menu->ChildAt(0)->ChildAt(all_user_selected)->Detach();
     };
-    auto remove_book_button = Button("Remove", remove_book_button_action, ButtonOption::Ascii());
+    auto remove_book_button = Button("Remove", remove_book_button_action, buttonOption());
 
     // User Management buttons
     auto remove_user_button_action = [&] {
@@ -425,13 +498,13 @@ void App::adminHome() {
         //Remove from the menu
         all_user_menu->ChildAt(0)->ChildAt(all_user_selected)->Detach();
     };
-    auto remove_user_button = Button("Remove", remove_user_button_action, ButtonOption::Ascii());
+    auto remove_user_button = Button("Remove", remove_user_button_action, buttonOption());
 
     auto grant_privelege_button_action = [&] {
         db->makeAdmin(all_users[all_user_selected]->username);
         all_users[all_user_selected]->type = UserClass::ADMIN;
     };
-    auto grant_privelege_button = Button("Grant Admin Rights", grant_privelege_button_action, ButtonOption::Ascii()) |
+    auto grant_privelege_button = Button("Grant Admin Rights", grant_privelege_button_action, buttonOption()) |
         Maybe([&] { return all_users[all_user_selected]->type == UserClass::NORMAL; });
 
     auto revoke_privelege_button_action = [&] {
@@ -443,7 +516,7 @@ void App::adminHome() {
             screen.Exit();
         }
     };
-    auto revoke_privelege_button = Button("Revoke Admin Rights", revoke_privelege_button_action, ButtonOption::Ascii()) |
+    auto revoke_privelege_button = Button("Revoke Admin Rights", revoke_privelege_button_action, buttonOption()) |
         Maybe([&] { return all_users[all_user_selected]->type == UserClass::ADMIN; });
 
 
@@ -511,8 +584,8 @@ void App::adminHome() {
                 main_tab->DetachAllChildren();
                 active_user = nullptr;
                 screen.Exit();
-            }, ButtonOption::Ascii()),
-            Button("Quit", [&] { throw Exit(); }, ButtonOption::Ascii())
+            }, buttonOption()),
+            Button("Quit", [&] { throw Exit(); }, buttonOption())
         })
     });
 
@@ -565,7 +638,7 @@ void App::normalHome() {
 
     // Main manu selector
     int main_menu_selected = 0;
-    auto main_menu = Menu(&main_selection, &main_menu_selected);
+    auto main_menu = Menu(&main_selection, &main_menu_selected, menuOption());
 
     // All books main menu item
     int all_book_selected = 0;
@@ -573,7 +646,7 @@ void App::normalHome() {
 
     for(int i = 0; i<all_books.size(); ++i){
         all_book_menu->Add(
-            MenuEntry(all_books[i]->author + "_" + all_books[i]->title) | Maybe([&, i] {
+            MenuEntry(all_books[i]->author + "_" + all_books[i]->title, menuEntryOption()) | Maybe([&, i] {
                 return searchString.empty() || isSearchResult(all_books[i], searchString);
             })
         );
@@ -587,7 +660,7 @@ void App::normalHome() {
 
     for(int i = 0; i<favourites.size(); ++i){
         favourites_menu->Add(
-            MenuEntry(favourites[i]->author + "_" + favourites[i]->title) | Maybe([&, i] {
+            MenuEntry(favourites[i]->author + "_" + favourites[i]->title, menuEntryOption()) | Maybe([&, i] {
                 return searchString.empty() || isSearchResult(favourites[i], searchString);
             })
         );
@@ -601,7 +674,7 @@ void App::normalHome() {
 
     for(int i = 0; i<borrowed.size(); ++i) {
         borrowed_menu->Add(
-            MenuEntry(borrowed[i]->author + "_" + borrowed[i]->title) | Maybe([&, i] {
+            MenuEntry(borrowed[i]->author + "_" + borrowed[i]->title, menuEntryOption()) | Maybe([&, i] {
                 return searchString.empty() || isSearchResult(borrowed[i], searchString);
             })
         );
@@ -614,7 +687,7 @@ void App::normalHome() {
         return Container::Horizontal({
             Renderer([] { return filler(); }),
             Renderer([] { return text("Search: "); }),
-            Input(&searchString, "  here  ") | size(ftxui::WIDTH, ftxui::EQUAL, 10)
+            Input(&searchString, "  here  ", inputOption()) | size(ftxui::WIDTH, ftxui::EQUAL, 10)
         });
     };
 
@@ -642,7 +715,7 @@ void App::normalHome() {
         auto indx = borrowed.size();
         borrowed.push_back(book);
         borrowed_menu->ChildAt(0)->Add(
-            MenuEntry(borrowed[indx]->author + "_" + borrowed[indx]->title) | Maybe([&, indx] {
+            MenuEntry(borrowed[indx]->author + "_" + borrowed[indx]->title, menuEntryOption()) | Maybe([&, indx] {
                 return searchString.empty() || isSearchResult(borrowed[indx], searchString);
             })
         );
@@ -651,7 +724,7 @@ void App::normalHome() {
         return std::ranges::any_of(borrowed, [&](const BookPtr& bok) { return book == bok; });
     };
 
-    auto borrow_button = Button("Borrow", borrow_button_action, ButtonOption::Ascii()) | Renderer([&](Element borrow) {
+    auto borrow_button = Button("Borrow", borrow_button_action, buttonOption()) | Renderer([&](Element borrow) {
         if (isBorrowed(all_books[all_book_selected])) {
             return text("Borrowed ");
         }
@@ -681,7 +754,7 @@ void App::normalHome() {
         auto indx = favourites.size();
         favourites.push_back(book);
         favourites_menu->ChildAt(0)->Add(
-            MenuEntry(favourites[indx]->author + "_" + favourites[indx]->title) | Maybe([&, indx] {
+            MenuEntry(favourites[indx]->author + "_" + favourites[indx]->title, menuEntryOption()) | Maybe([&, indx] {
                 return searchString.empty() || isSearchResult(favourites[indx], searchString);
             })
         );
@@ -691,7 +764,7 @@ void App::normalHome() {
         return std::ranges::any_of(favourites, [&](const BookPtr& bok) { return book == bok; });
     };
 
-    auto like_button = Button("Like", like_button_action, ButtonOption::Ascii()) | Renderer([&](Element like) {
+    auto like_button = Button("Like", like_button_action, buttonOption()) | Renderer([&](Element like) {
         if (isFavourite(all_books[all_book_selected])) {
             return text(" Liked");
         }
@@ -710,7 +783,7 @@ void App::normalHome() {
         // Remove from the menu
         borrowed_menu->ChildAt(0)->ChildAt(borrowed_book_selected)->Detach();
     };
-    auto unborrow_button = Button("Return", unborrow_button_action, ButtonOption::Ascii());
+    auto unborrow_button = Button("Return", unborrow_button_action, buttonOption());
 
     auto unlike_button_action = [&] {
         // remove from database
@@ -720,7 +793,7 @@ void App::normalHome() {
         // Remove from the favourites menu
         favourites_menu->ChildAt(0)->ChildAt(favourite_book_selected)->Detach();
     };
-    auto unlike_button = Button("Unlike", unlike_button_action, ButtonOption::Ascii());
+    auto unlike_button = Button("Unlike", unlike_button_action, buttonOption());
 
     std::string new_password;
     bool deleting_account = false, password_change_success = false;
@@ -761,7 +834,7 @@ void App::normalHome() {
                 Container::Horizontal({
                     Renderer([] { return filler();}),
                     unborrow_button,
-                    Button("Like", like_button_action, ButtonOption::Ascii()) | Renderer([&](Element like) {
+                    Button("Like", like_button_action, buttonOption()) | Renderer([&](Element like) {
                         if (isFavourite(borrowed[borrowed_book_selected])) {
                             return text(" Liked");
                         }
@@ -788,7 +861,7 @@ void App::normalHome() {
                 Container::Horizontal({
                     Renderer([] { return filler();}),
                     unlike_button,
-                    Button("Borrow", borrow_button_action, ButtonOption::Ascii()) | Renderer([&](Element borrow) {
+                    Button("Borrow", borrow_button_action, buttonOption()) | Renderer([&](Element borrow) {
                         if (isBorrowed(favourites[favourite_book_selected])) {
                             return text(" Borrowed");
                         }
@@ -824,8 +897,8 @@ void App::normalHome() {
                 main_tab->DetachAllChildren();
                 active_user = nullptr;
                 screen.Exit();
-            }, ButtonOption::Ascii()),
-            Button("Quit", [&] { throw Exit(); }, ButtonOption::Ascii())
+            }, buttonOption()),
+            Button("Quit", [] { throw Exit(); }, buttonOption())
         })
     });
 
@@ -923,11 +996,9 @@ ftxui::Component App::label(const std::string txt) {
 ftxui::Component App::accountMgmtScreen(std::string& new_password, bool& password_change_success, bool& deleting_account) {
     using namespace ftxui;
 
-    auto password_option = InputOption();
-    password_option.password = true;
     if (active_user->username == "root") {
         return Container::Vertical({
-            Input(&new_password, " password", password_option),
+            Input(&new_password, " password", passwordInputOption()),
             Renderer([]{ return text("Password too short") | color(Color::Red); }) | Maybe([&] {
                 return !new_password.empty() && new_password.size() < 4;
             }),
@@ -939,12 +1010,12 @@ ftxui::Component App::accountMgmtScreen(std::string& new_password, bool& passwor
                 db->changePassword(active_user->username, new_password);
                 new_password.clear();
                 flip(password_change_success);
-            }, ButtonOption::Ascii())
+            }, buttonOption())
         });
     }
 
     return Container::Vertical({
-        Input(&new_password, "            password", password_option),
+        Input(&new_password, "            password", passwordInputOption()),
         Renderer([]{ return text("Password too short") | color(Color::Red); }) | Maybe([&] {
             return !new_password.empty() && new_password.size() < 4;
         }),
@@ -957,10 +1028,10 @@ ftxui::Component App::accountMgmtScreen(std::string& new_password, bool& passwor
                 db->changePassword(active_user->username, new_password);
                 new_password.clear();
                 flip(password_change_success);
-            }, ButtonOption::Ascii()),
+            }, buttonOption()),
             Button("Delete Account", [&]{
                 deleting_account = true;
-            }, ButtonOption::Ascii())
+            }, buttonOption())
         }),
         Container::Vertical({
             Renderer([]{ return text("This action is irreversible. Are you sure?") | color(Color::Red); }),
@@ -971,10 +1042,10 @@ ftxui::Component App::accountMgmtScreen(std::string& new_password, bool& passwor
                     clearSession();
                     active_user = nullptr;
                     screen.Exit();
-                }, ButtonOption::Ascii()),
+                }, buttonOption()),
                 Button("No", [&] {
                     deleting_account = false;
-                }, ButtonOption::Ascii()),
+                }, buttonOption()),
                 Renderer([] { return filler(); })
             })
         }) | Maybe(&deleting_account)

@@ -1,16 +1,16 @@
 #include "App.hpp"
 #include "Librarydb.hpp"
 
-#include <iostream>
-#include <cstdlib>
-#include <exception>
-#include <filesystem>
-#include <iterator>
-#include <memory>
-#include <stdexcept>
-#include <vector>
-#include <string>
-#include <fstream>
+#include <iostream> // cerr
+#include <cstdlib> // EXIT_FAILURE
+#include <exception> // exception
+#include <filesystem> // create_directory, canonical, is_regular_file
+#include <iterator> // next
+#include <memory> // make_unique
+#include <stdexcept> // invalid_argument
+#include <vector> // vector
+#include <string> // string
+#include <fstream> // ofstream
 
 void print_usage() {
 std::cerr<<
