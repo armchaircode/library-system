@@ -121,7 +121,7 @@ int App::run() {
     }
     catch(const std::exception& e) {
         screen.Exit();
-        std::cerr<<"[Error] Unknown error. <"<<e.what()<<">"<<std::endl;
+        std::cerr<<"[ERROR] Unknown error. <"<<e.what()<<">"<<std::endl;
         return EXIT_FAILURE;
     }
     //

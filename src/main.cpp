@@ -1,5 +1,6 @@
 #include "App.hpp"
 #include "Librarydb.hpp"
+#include "SQLiteCpp/Exception.h"
 
 #include <iostream> // cerr
 #include <cstdlib> // EXIT_FAILURE
@@ -70,12 +71,12 @@ int main(int argc, char** argv) {
         try{
             auto path = std::filesystem::canonical(db_path);
             if (not std::filesystem::is_regular_file(path)){
-                std::cerr<<"Error: Can't open database file "<<path<<" : Not regular file\n";
+                std::cerr<<"[ERROR]: Can't open database file "<<path<<" : Not regular file\n";
                 return EXIT_FAILURE;
             }
         }
         catch(const std::exception& e){
-            std::cerr<<"Error: Database file "<<db_path<<" doesn't exist!\n";
+            std::cerr<<"[ERROR]: Database file "<<db_path<<" doesn't exist!\n";
             return EXIT_FAILURE;
         }
     }
@@ -91,6 +92,10 @@ int main(int argc, char** argv) {
         db = std::make_unique<Librarydb>(db_path);
     }
     catch(const std::invalid_argument& e) {
+        std::cerr<<"[ERROR] Failed to open database: <"<<e.what()<<">"<<std::endl;
+        return EXIT_FAILURE;
+    }
+    catch(const SQLite::Exception& e) {
         std::cerr<<"[ERROR] Failed to initialize database: <"<<e.what()<<">"<<std::endl;
         return EXIT_FAILURE;
     }
