@@ -29,11 +29,9 @@ class Librarydb{
 
         void addFavourite(const std::string username, const std::size_t book_id);
         void removeFavourite(const std::string username, const std::size_t book_id);
-        void unfavouriteAll(const std::string username);
 
         void borrow(const std::string username, const std::size_t book_id);
         void unborrow(const std::string username, const std::size_t book_id);
-        void unborrowAll(const std::string username);
 
         UserPtr restoreSession(std::size_t session);
         void newSession(const std::string username, std::size_t session);

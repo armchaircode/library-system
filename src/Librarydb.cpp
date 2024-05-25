@@ -30,7 +30,7 @@ void Librarydb::makeSchema(){
     SQLite::Transaction trxn(*databs);
     try
     {
-    databs->exec(R"#(
+        databs->exec(R"#(
                  CREATE TABLE IF NOT EXISTS [users]
                  (
                     [username] VARCHAR(20) PRIMARY KEY NOT NULL,
@@ -40,19 +40,19 @@ void Librarydb::makeSchema(){
                     CHECK ([type] IN ('Admin', 'Regular'))
                  )
                  )#");
-    // Default admin account
-    databs->exec(R"#(
+        // Default admin account
+        databs->exec(R"#(
                  INSERT INTO [users] (email, username, password, type)
                     VALUES ('root@library.me', 'root', 'root', 'Admin')
                  )#");
-    // Create books table
-    databs->exec(R"#(
+        // Create books table
+        databs->exec(R"#(
                  CREATE TABLE IF NOT EXISTS [books]
                  (
                     [book_id] INTEGER NOT NULL PRIMARY KEY,
                     [title] VARCHAR(100) NOT NULL,
                     [author] VARCHAR(50) NOT NULL,
-                    [quantity] INTEGER NOT NULL,
+                    [quantity] INTEGER NOT NULL CHECK (quantity >= 0),
                     [publisher] VARCHAR(50),
                     [pub_year] INTEGER,
                     [description] VARCHAR(200),
@@ -61,41 +61,66 @@ void Librarydb::makeSchema(){
                     [file] BLOB
                  )
                  )#");
-    // Create favourites relationship table
-    databs->exec(R"#(
+        // Create favourites relationship table
+        databs->exec(R"#(
                  CREATE TABLE IF NOT EXISTS [favourites]
                  (
                     [username] VARCHAR(50) NOT NULL,
                     [book_id] INTEGER NOT NULL,
                     CONSTRAINT [pk_favourites] PRIMARY KEY (username, book_id),
                     FOREIGN KEY ([username]) REFERENCES [users] (username)
-                        ON DELETE CASCADE ON UPDATE NO ACTION,
+                        ON DELETE CASCADE,
                     FOREIGN KEY (book_id) REFERENCES [books] (book_id)
-                        ON DELETE CASCADE ON UPDATE NO ACTION
+                        ON DELETE CASCADE
                  )
                  )#");
-    // Crate borrowed relationship table
-     databs->exec(R"#(
+        // Crate borrowed relationship table
+        databs->exec(R"#(
                  CREATE TABLE IF NOT EXISTS [borrows]
                  (
                     [username] VARCHAR(50) NOT NULL,
                     [book_id] INTEGER NOT NULL,
                     CONSTRAINT [pk_favourites] PRIMARY KEY (username, book_id),
                     FOREIGN KEY (username) REFERENCES [users] (username)
-                        ON DELETE CASCADE ON UPDATE NO ACTION,
+                        ON DELETE CASCADE,
                     FOREIGN KEY (book_id) REFERENCES [books] (book_id)
-                        ON DELETE CASCADE ON UPDATE NO ACTION
+                        ON DELETE CASCADE
                  )
                  )#");
 
-    databs->exec(R"#(
+        databs->exec(R"#(
                 CREATE TABLE IF NOT EXISTS [sessions] (
                     [username] VARCHAR(50) NOT NULL PRIMARY KEY,
                     [session] INTEGER UNIQUE,
                     FOREIGN KEY (username) REFERENCES [users] (username)
-                        ON DELETE CASCADE ON UPDATE NO ACTION
+                        ON DELETE CASCADE
                  )
                  )#");
+        databs->exec(R"#(
+                CREATE TRIGGER decrease_book_number
+                     AFTER INSERT ON [borrows]
+                BEGIN
+                    UPDATE [books] SET quantity = quantity - 1
+                        WHERE book_id = NEW.book_id;
+                END
+                )#");
+        databs->exec(R"#(
+                CREATE TRIGGER increase_book_number
+                     AFTER DELETE ON [borrows]
+                BEGIN
+                    UPDATE [books] SET quantity = quantity + 1
+                        WHERE book_id = OLD.book_id;
+                END
+                )#");
+        databs->exec(R"#(
+                CREATE TRIGGER remove_admin_borrows
+                     AFTER UPDATE ON [users]
+                WHEN NEW.type = 'Admin' AND OLD.type = 'Regular'
+                BEGIN
+                     DELETE FROM [borrows]
+                        WHERE username = NEW.username;
+                END
+                )#");
     trxn.commit();
     }
     catch(SQLite::Exception& e) {
@@ -223,7 +248,6 @@ void Librarydb::addUser(const UserPtr& nuser, std::string password){
 }
 
 void Librarydb::removeUser(std::string username){
-    unborrowAll(username);
     SQLite::Statement stmnt(*databs, "DELETE FROM [Users] WHERE username = ?");
     stmnt.bind(1, username);
     stmnt.exec();
@@ -282,11 +306,6 @@ void Librarydb::removeFavourite(std::string username, std::size_t book_id) {
     stmnt.bind(2, static_cast<std::int64_t>(book_id));
     stmnt.exec();
 }
-void Librarydb::unfavouriteAll(std::string username){
-    SQLite::Statement stmnt(*databs, "DELETE FROM [favourites] WHERE username = ?");
-    stmnt.bind(1, username);
-    stmnt.exec();
-}
 
 void Librarydb::borrow(std::string username, std::size_t book_id) {
     auto query = R"#(
@@ -297,52 +316,12 @@ void Librarydb::borrow(std::string username, std::size_t book_id) {
     stmnt.bind(1, username);
     stmnt.bind(2, static_cast<int64_t>(book_id));
     stmnt.exec();
-
-    // Reduce available number by one
-    query = R"#(
-        UPDATE [books] SET quantity = quantity - 1
-            WHERE book_id = ?
-    )#";
-    stmnt = SQLite::Statement(*databs, query);
-    stmnt.bind(1, static_cast<int64_t>(book_id));
-    stmnt.exec();
 }
 
 void Librarydb::unborrow(std::string username, std::size_t book_id) {
-    auto query = R"#(
-        UPDATE [books]
-            SET quantity = quantity + 1
-        WHERE book_id = ?
-    )#";
-    SQLite::Statement stmnt(*databs, query);
-    stmnt.bind(1, static_cast<std::int64_t>(book_id));
-    stmnt.exec();
-
-    stmnt = SQLite::Statement(*databs, "DELETE FROM [borrows] WHERE username = ? AND book_id = ?");
+    SQLite::Statement stmnt(*databs, "DELETE FROM [borrows] WHERE username = ? AND book_id = ?");
     stmnt.bind(1, username);
     stmnt.bind(2, static_cast<std::int64_t>(book_id));
-    stmnt.exec();
-}
-
-void Librarydb::unborrowAll(std::string username) {
-    auto query = R"#(
-        UPDATE [books]
-            SET quantity = quantity + 1
-        WHERE [book_id] IN (
-            SELECT [book_id] FROM [borrows]
-                WHERE username = ?
-        )
-    )#";
-    SQLite::Statement stmnt(*databs, query);
-    stmnt.bind(1, username);
-    stmnt.exec();
-
-    query = R"#(
-        DELETE FROM [borrows]
-            WHERE username = ?
-    )#";
-    stmnt = SQLite::Statement(*databs, query);
-    stmnt.bind(1, username);
     stmnt.exec();
 }
 
@@ -436,8 +415,6 @@ void Librarydb::changePassword(const std::string& username, const std::string& p
 }
 
 void Librarydb::makeAdmin(const std::string& username) {
-    unborrowAll(username);
-    unfavouriteAll(username);
     SQLite::Statement stmnt(*databs, "UPDATE [users] SET [type] = 'Admin' WHERE [username] = ?");
     stmnt.bind(1, username);
     stmnt.exec();
