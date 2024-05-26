@@ -17,6 +17,7 @@
 #include <cstddef> // size_t
 #include <cstdlib> // EXIT_FAILURE, EXIT_SUCCESS
 #include <fstream> // ifstream, ofstream
+#include <ftxui/component/event.hpp>
 #include <functional> // hash
 #include <iostream> // cerr
 #include <memory> // make_unique
@@ -153,10 +154,11 @@ void App::attemptRestore() {
     }
 }
 
-void flip(bool& flag) {
+void App::flip(bool& flag) {
     auto th = std::thread([&flag] {
         flag = not flag;
-        std::this_thread::sleep_for(std::chrono::seconds{1});;
+        std::this_thread::sleep_for(std::chrono::seconds{2});;
+        screen.PostEvent(ftxui::Event::Custom);
         flag = not flag;
     });
     th.detach();

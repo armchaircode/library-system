@@ -39,6 +39,8 @@ class App {
 
         ftxui::Component accountMgmtScreen(std::string& new_password, bool& password_change_success, bool& deleting_account);
 
+        void flip(bool& flag);
+
         int entryMenuSize = 70;
         inline static ftxui::ScreenInteractive screen = ftxui::ScreenInteractive::Fullscreen();
         std::unique_ptr<User> active_user;
