@@ -319,13 +319,7 @@ void App::login() {
             ),
             filler()
         }) | border;
-    }) | CatchEvent([&](Event e) {
-            if (e == Event::Character('q')) {
-                screen.Exit();
-                return true;
-            }
-            return false;
-        });
+    });
 
     screen.Loop(login_signup_renderer);
 }
@@ -826,10 +820,7 @@ void App::normalHome() {
         return []{};
     };
     auto rate_button = [&](int n) {
-        std::string stars;
-        for (int i = 0; i<n; ++i)
-            stars.push_back('*');
-        return Button(stars, [&, n]{
+        return Button(std::string(n, '*'), [&, n]{
             auto book = borrowed[borrowed_book_selected];
             book->rating = db->rateBoot(book->book_id, n);
             show_rate_dialog = false;
