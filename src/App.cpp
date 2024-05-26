@@ -10,6 +10,7 @@
 #include "ftxui/component/component_options.hpp"
 #include "ftxui/dom/elements.hpp"
 #include "ftxui/dom/node.hpp"
+#include "ftxui/component/event.hpp"
 
 #include <algorithm> // all_of, none_of, any_of
 #include <cctype> // isdigit
@@ -17,7 +18,6 @@
 #include <cstddef> // size_t
 #include <cstdlib> // EXIT_FAILURE, EXIT_SUCCESS
 #include <fstream> // ifstream, ofstream
-#include <ftxui/component/event.hpp>
 #include <functional> // hash
 #include <iostream> // cerr
 #include <memory> // make_unique
@@ -271,7 +271,13 @@ void App::login() {
             Button("Login", login_action, buttonOption()),
             Button("Quit", [] { throw Exit(); }, buttonOption())
         })
-    });
+    }) | CatchEvent([&](Event e) {
+            if (e == Event::Return){
+                login_action();
+                return true;
+            }
+            return false;
+        });
 
     auto signup_screen_container = Container::Vertical({
         Input(&email, "Email", inputOption()) | size(WIDTH, ftxui::EQUAL, 40) | border,
@@ -282,7 +288,13 @@ void App::login() {
             Button("Sign Up", signup_action, buttonOption()),
             Button("Quit", [&] { throw Exit(); }, buttonOption())
        })
-    });
+    }) | CatchEvent([&](Event e) {
+            if (e == Event::Return) {
+                signup_action();
+                return true;
+            }
+            return false;
+        });
 
     auto login_signup_screen = Container::Vertical({
         Toggle(&toggle_labels, &login_signup_selected),
@@ -307,7 +319,13 @@ void App::login() {
             ),
             filler()
         }) | border;
-    });
+    }) | CatchEvent([&](Event e) {
+            if (e == Event::Character('q')) {
+                screen.Exit();
+                return true;
+            }
+            return false;
+        });
 
     screen.Loop(login_signup_renderer);
 }
@@ -471,7 +489,8 @@ void App::adminHome() {
                 Input(&add_book_publisher, "publisher", inputOption()),
                 Input(&add_book_pub_year, "year", inputOption()),
                 Input(&add_book_edition, "edition", inputOption()),
-                Input(&add_book_description, "description", inputOption())
+                Input(&add_book_description, "description",InputOption())
+                    | size(ftxui::WIDTH, ftxui::LESS_THAN, 50)
             }),
             Renderer([]{ return filler(); })
         }),
@@ -800,6 +819,37 @@ void App::normalHome() {
     std::string new_password;
     bool deleting_account = false, password_change_success = false;
 
+    bool show_rate_dialog = false;
+    auto rate_action = [&](int rating) {
+        // Take rating
+        show_rate_dialog = false;
+        return []{};
+    };
+    auto rate_button = [&](int n) {
+        std::string stars;
+        for (int i = 0; i<n; ++i)
+            stars.push_back('*');
+        return Button(stars, [&, n]{
+            auto book = borrowed[borrowed_book_selected];
+            book->rating = db->rateBoot(book->book_id, n);
+            show_rate_dialog = false;
+        }, buttonOption());
+    };
+    auto rate_dialog = Container::Vertical({
+        Renderer([&] { return text("Rate: " + borrowed[borrowed_book_selected]->title); }),
+        Renderer([&] { return separator(); }),
+        Container::Horizontal({
+            rate_button(1), rate_button(2), rate_button(3), rate_button(4), rate_button(5)
+        })
+    }) | border | size(ftxui::WIDTH, EQUAL, 30) | size(ftxui::HEIGHT, EQUAL, 5)
+        | CatchEvent([&](Event e) {
+            if (e == Event::Escape){
+                show_rate_dialog = false;
+                return true;
+            }
+            return false;
+        });
+
     // Main entries and the selected entry info containers holder
     auto main_tab = Container::Tab({
         // all books tab
@@ -838,16 +888,17 @@ void App::normalHome() {
                     unborrow_button,
                     Button("Like", like_button_action, buttonOption()) | Renderer([&](Element like) {
                         if (isFavourite(borrowed[borrowed_book_selected])) {
-                            return text(" Liked");
+                            return text(" Liked ");
                         }
                         else {
                             return std::move(like);
                         }
                     }),
+                    Button("Rate", [&] { show_rate_dialog = true; }, buttonOption()),
                     Renderer([] { return filler();})
                 })
             })
-        }) | Maybe([&] { return ! borrowed.empty(); }),
+        }) | Modal(rate_dialog, &show_rate_dialog) | Maybe([&] { return ! borrowed.empty(); }),
 
         // favourites tab
         Container::Horizontal({

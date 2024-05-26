@@ -8,6 +8,7 @@
 
 #include <cstddef> // size_t
 #include <cstdint> // int64_t
+#include <fstream>
 #include <memory> // make_shared
 #include <stdexcept> // invalid_argument
 #include <string> // string
@@ -57,7 +58,8 @@ void Librarydb::makeSchema(){
                     [pub_year] INTEGER,
                     [description] VARCHAR(200),
                     [edition] INTEGER,
-                    [rating] NUMERIC(2,1),
+                    [rating] NUMERIC,
+                    [raters] INTEGER DEFAULT 0,
                     [file] BLOB
                  )
                  )#");
@@ -424,4 +426,20 @@ void Librarydb::demoteAdmin(const std::string& username) {
     SQLite::Statement stmnt(*databs, "UPDATE [users] SET [type] = 'Regular' WHERE [username] = ?");
     stmnt.bind(1, username);
     stmnt.exec();
+}
+
+double Librarydb::rateBoot(std::size_t book_id, int n){
+    SQLite::Statement stmnt(*databs, R"#(SELECT [raters], [rating] FROM "books" WHERE [book_id] = ?)#");
+    stmnt.bind(1, static_cast<std::int64_t>(book_id));
+    stmnt.executeStep();
+
+    int raters = stmnt.getColumn(0).getInt();
+    double rating = stmnt.getColumn(1).getDouble();
+    rating = ((rating * raters) + n) / (raters + 1);
+    stmnt = SQLite::Statement(*databs, R"#(UPDATE [books] SET [rating] = ? , [raters] = [raters] + 1 WHERE [book_id] = ?)#");
+    stmnt.bind(1, rating);
+    stmnt.bind(2, static_cast<std::int64_t>(book_id));
+    stmnt.exec();
+
+    return rating;
 }
