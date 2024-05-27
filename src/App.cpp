@@ -22,7 +22,7 @@
 #include <iostream> // cerr
 #include <memory> // make_unique
 #include <exception> // exception
-#include <stdexcept>
+#include <stdexcept> // runtime_error
 #include <string> // string
 #include <sys/types.h>
 #include <thread> // thread
@@ -74,6 +74,7 @@ ftxui::MenuOption menuOption() {
     return std::move(option);
 }
 
+// Centrally defined input behaviour
 ftxui::InputOption inputOption() {
     using namespace ftxui;
 
@@ -98,6 +99,7 @@ ftxui::InputOption inputOption() {
     return std::move(option);
 }
 
+// Input option which is also a password input
 ftxui::InputOption passwordInputOption() {
     auto option = inputOption();
     option.password = true;
@@ -105,10 +107,12 @@ ftxui::InputOption passwordInputOption() {
     return std::move(option);
 }
 
+// Button behaviour definition
 ftxui::ButtonOption buttonOption() {
     return ftxui::ButtonOption::Ascii();
 }
 
+// Catch ENTER key and handle it by its action
 ftxui::ComponentDecorator catchEnter(const Action& action) {
     return ftxui::CatchEvent([&](ftxui::Event e){
         if (e == ftxui::Event::Return) {
@@ -208,6 +212,7 @@ void App::login() {
         }
     }
 
+    // SIGNUP stuff here
     bool signup_ok = false;
     std::string login_username, signup_username, signup_password, login_password, email, signup_error_message;
     auto signup_status = Renderer([&] {
@@ -233,6 +238,8 @@ void App::login() {
             return show_error;
         });
 
+
+    // When a login fails, this comes up.
     bool show_failed_authentication = false;
     auto failed_login = Renderer([&] {
         return text("Login failed. Wrong credentials!") | color(Color::Red);
@@ -241,6 +248,7 @@ void App::login() {
     std::vector<std::string> toggle_labels{"Login", "Signup"};
     int login_signup_selected = 0;
 
+    // Funcion called when sign-up is requested
     auto signup_action = [&] {
         if (not signup_ok)
             return;
@@ -248,17 +256,24 @@ void App::login() {
         // save sign-up info and set active_user
         auto usr = User{email, signup_username, UserClass::NORMAL};
         db->addUser(std::make_shared<User>(usr), signup_password);
-        // signed up
+
+        // return flag to its original place
         signup_ok = false;
+
+        //clear buffers
         signup_password.clear();
         signup_username.clear();
         email.clear();
+
+        // Select signup page once signed up. Otherwise, sign up is still displayed upon logout
         login_signup_selected = 0;
+
         active_user = std::make_unique<User>(usr);
         saveSession();
         home();
     };
 
+    // This is invoked for login
     auto login_action = [&] {
         auto usr = db->authenticate(login_username, login_password);
         if (usr) {
@@ -270,11 +285,13 @@ void App::login() {
             home();
         }
         else {
+            // lobin failed
             login_password.clear();
             flip(show_failed_authentication);
         }
     };
 
+    // Container for widgets in login tab
     auto login_screen_container = Container::Vertical({
         Input(&login_username, "Username", inputOption()) | size(ftxui::WIDTH, ftxui::EQUAL, 40) | border,
         Input(&login_password, "Password", passwordInputOption()) | size(ftxui::WIDTH, ftxui::EQUAL, 40) | border,
@@ -283,7 +300,7 @@ void App::login() {
             Button("Login", login_action, buttonOption()),
             Button("Quit", [] { throw Exit(); }, buttonOption())
         })
-    }) | CatchEvent([&](Event e) {
+    }) | CatchEvent([&](Event e) {          /* Invoke login_action when Enter is pressed */
             if (e == Event::Return){
                 login_action();
                 return true;
@@ -291,6 +308,7 @@ void App::login() {
             return false;
         });
 
+    // Container for widgets in signup page
     auto signup_screen_container = Container::Vertical({
         Input(&email, "Email", inputOption()) | size(WIDTH, ftxui::EQUAL, 40) | border,
         Input(&signup_username, "Username", inputOption()) | size(WIDTH, ftxui::EQUAL, 40) | border,
@@ -302,19 +320,20 @@ void App::login() {
        })
     }) | CatchEvent([&](Event e) {
             if (e == Event::Return) {
-                signup_action();
+                signup_action();    /* Signup on ENTER */
                 return true;
             }
             return false;
         });
 
+    // Whole of login-Signup screen. A sort of super container
     auto login_signup_screen = Container::Vertical({
         Toggle(&toggle_labels, &login_signup_selected),
         Container::Tab({login_screen_container, signup_screen_container },
             &login_signup_selected)
     });
 
-
+    // Fine tune rendering of login-signup widgets.
     auto login_signup_renderer = Renderer(login_signup_screen, [&] {
         return vbox({
             hbox(
@@ -333,10 +352,12 @@ void App::login() {
         }) | border;
     });
 
+    // Finally, keep it all in the loop
     screen.Loop(login_signup_renderer);
 }
 
 void App::adminHome() {
+    // Admin accounts stuff
     using namespace ftxui;
     std::string username = active_user->username;
 
@@ -347,9 +368,11 @@ void App::adminHome() {
         "My account"
     };
 
+    // Fetch data from database
     BookStack all_books = db->getAllBooks();
     Users all_users = db->getAllUsers();
 
+    // Buffer for search text
     std::string searchString;
 
     // Main manu selector
@@ -360,6 +383,7 @@ void App::adminHome() {
     int all_book_selected = 0;
     auto all_book_menu = Container::Vertical({}, &all_book_selected);
 
+    // Add books to the book management menu
     for(int i = 0; i<all_books.size(); ++i){
         all_book_menu->Add(
             MenuEntry(all_books[i]->author + "_" + all_books[i]->title, menuEntryOption()) | Maybe([&, i] {
@@ -370,9 +394,11 @@ void App::adminHome() {
 
     all_book_menu |= size(ftxui::WIDTH, ftxui::EQUAL, entryMenuSize);
 
+    // Users management menu
     int all_user_selected = 0;
     auto all_user_menu = Container::Vertical({}, &all_user_selected);
 
+    // Put users data on the menu, for users management
     for(int i = 0; i<all_users.size(); ++i){
         all_user_menu->Add(
             MenuEntry(all_users[i]->username + "_" + all_users[i]->email, menuEntryOption()) | Maybe([&, i] {
@@ -392,16 +418,19 @@ void App::adminHome() {
         });
     };
 
+    // This is filter maker for input fields that should only take digits, like quantity
     auto digit_filter = []{
         return CatchEvent([](Event e) {
             return e.is_character() && !std::isdigit(e.character()[0]);
         });
     };
 
+    // Buffers for book information, used when adding and editng books
     std::string add_book_title, add_book_author, add_book_quantity, add_book_publisher,
             add_book_pub_year, add_book_edition, add_book_description;
     int text_label_size = 20;
 
+    // Success message dialog
     bool show_success_alert = false;
     std::string success_message;
     auto success_alert = [&] {
@@ -412,6 +441,7 @@ void App::adminHome() {
         }) | Maybe(&show_success_alert);
     };
 
+    // Error message dialog
     bool show_error_alert = false;
     std::string error_message;
     auto add_edit_book_alert = [&] {
@@ -425,61 +455,65 @@ void App::adminHome() {
 
     // action performed when add book function is asked
     auto add_book_action = [&]{
-            bool required_field_missing_error = true;
-            if(add_book_title.empty()) {
-                error_message = "Title is required";
-            }
-            else if (add_book_author.empty()) {
-                error_message = "Author name is required";
-            }
-            else if(add_book_quantity.empty()) {
-                error_message = "Quantity is required";
-            }
-            else {
-                required_field_missing_error = false;
-            }
+        bool required_field_missing_error = true;
+        // Check if any of required fields is missing
+        if(add_book_title.empty()) {
+            error_message = "Title is required";
+        }
+        else if (add_book_author.empty()) {
+            error_message = "Author name is required";
+        }
+        else if(add_book_quantity.empty()) {
+            error_message = "Quantity is required";
+        }
+        else {
+            required_field_missing_error = false;
+        }
 
-            if(required_field_missing_error) {
-                flip(show_error_alert);
-                return;
-            }
+        // If missing, DARN
+        if(required_field_missing_error) {
+            flip(show_error_alert);
+            return;
+        }
 
-            // all is good
-            auto book = std::make_shared<Book>();
-            book->book_id = std::hash<std::string>{}(
-                book->title + book->author + std::to_string(std::chrono::system_clock::now().time_since_epoch().count())
-            );
-            book->title = add_book_title;
-            book->author = add_book_author;
-            book->quantity = std::stoi(add_book_quantity);
-            book->publisher = add_book_publisher;
-            add_book_pub_year.empty() ? book->pub_year = -1 : book->pub_year = std::stoi(add_book_pub_year);
-            add_book_edition.empty() ? book->edition = -1 : book->edition = std::stoi(add_book_edition);
+        // ALL IS GOOD
+        // Copy data from buffers to book object
+        auto book = std::make_shared<Book>();
+        book->book_id = std::hash<std::string>{}(
+            book->title + book->author + std::to_string(std::chrono::system_clock::now().time_since_epoch().count())
+        );
+        book->title = add_book_title;
+        book->author = add_book_author;
+        book->quantity = std::stoi(add_book_quantity);
+        book->publisher = add_book_publisher;
+        add_book_pub_year.empty() ? book->pub_year = -1 : book->pub_year = std::stoi(add_book_pub_year);
+        add_book_edition.empty() ? book->edition = -1 : book->edition = std::stoi(add_book_edition);
 
-            // add the new book to the database, working copy and menu
-            db->addBook(book);
-            auto indx = all_books.size();
-            all_books.push_back(book);
-            all_book_menu->ChildAt(0)->Add(
-                MenuEntry(book->author + "_" + book->title, menuEntryOption()) | Maybe([&, indx] {
-                    return searchString.empty() || isSearchResult(all_books[indx], searchString);
-                })
-            );
+        // add the new book to the database, working copy and menu
+        db->addBook(book);
+        auto indx = all_books.size();
+        all_books.push_back(book);
+        all_book_menu->ChildAt(0)->Add(
+            MenuEntry(book->author + "_" + book->title, menuEntryOption()) | Maybe([&, indx] {
+                return searchString.empty() || isSearchResult(all_books[indx], searchString);
+            })
+        );
 
-            // show success message
-            success_message = "Book added successfully";
-            flip(show_success_alert);
+        // show success message
+        success_message = "Book added successfully";
+        flip(show_success_alert);
 
-            //clear things up
-            add_book_title.clear();
-            add_book_author.clear();
-            add_book_quantity.clear();
-            add_book_publisher.clear();
-            add_book_pub_year.clear();
-            add_book_edition.clear();
-            add_book_description.clear();
-       };
+        //clear things up
+        add_book_title.clear();
+        add_book_author.clear();
+        add_book_quantity.clear();
+        add_book_publisher.clear();
+        add_book_pub_year.clear();
+        add_book_edition.clear();
+        add_book_description.clear();
+    };
 
+    // Simple label maker. Meant to avoid rewritting the same code ten places
     auto make_label = [](const std::string txt) {
         using namespace ftxui;
         return Container::Horizontal({
@@ -488,6 +522,7 @@ void App::adminHome() {
             }) | size(ftxui::WIDTH, ftxui::EQUAL, 20);
     };
 
+    // Bunch of input fields, with their labes, for book information
     auto book_detail_inputs = [&]{
         return Container::Horizontal({
             Renderer([]{ return filler(); }),
@@ -515,6 +550,7 @@ void App::adminHome() {
         });
     };
 
+    // Container for add books tab
     auto add_book_container = Container::Vertical({
         book_detail_inputs(),
         add_edit_book_alert(),
@@ -532,14 +568,16 @@ void App::adminHome() {
             return false;
         });
 
-    /*
-        * EDITING
-    */
-
+    // Flag to control whn edit book window is displayed
     bool show_book_edit_dialog = false;
 
+    // Kick off editing books
     auto edit_button_action = [&] {
+        // Find selected book
         auto book = all_books[all_book_selected];
+
+        // Copy book data to buffers. The user only has to edit the wanted bits
+        // and not write everything from scratch
         add_book_title = book->title;
         add_book_author = book->author;
         add_book_quantity = std::to_string(book->quantity);
@@ -548,10 +586,12 @@ void App::adminHome() {
         add_book_edition = book->edition < 0 ? "" : std::to_string(book->edition);
         add_book_description = book->description;
 
+        // Display editing window. Let the editing begin
         show_book_edit_dialog = true;
     };
     auto edit_book_button = Button("Edit", edit_button_action, buttonOption());
 
+    // House cleaning after editing is done, or cancelled
     auto leave_edit_dialog_action = [&] {
         // clear up
         add_book_title.clear();
@@ -562,10 +602,13 @@ void App::adminHome() {
         add_book_edition.clear();
         add_book_description.clear();
 
+        // Hide book editing little window
         show_book_edit_dialog = false;
     };
 
+    // Make the actual changes
     auto save_chages_button_action = [&] {
+        // Check if anything is missing
         bool required_field_missing_error = true;
         if(add_book_title.empty()) {
             error_message = "Title is required";
@@ -580,12 +623,16 @@ void App::adminHome() {
             required_field_missing_error = false;
         }
 
+        // If something is missing, TOO BAD
         if(required_field_missing_error) {
             flip(show_error_alert);
             return;
         }
 
+        // Find the book in question
         auto book = all_books[all_book_selected];
+
+        // Edit the book data
         book->title = add_book_title;
         book->author = add_book_author;
         book->quantity = add_book_quantity.empty() ? -1 : std::stoi(add_book_quantity);
@@ -594,10 +641,13 @@ void App::adminHome() {
         book->edition = add_book_edition.empty() ? -1 : std::stoi(add_book_edition);
         book->description = add_book_description;
 
+        // Make the changes permanent, in database
         db->updateBook(book);
+        // Finally, clean the house and editing is over
         leave_edit_dialog_action();
     };
 
+    // Book editing widgets in one house
     auto edit_book_container = Container::Vertical({
         book_detail_inputs(),
         Renderer([]{ return separator(); }),
@@ -608,12 +658,12 @@ void App::adminHome() {
             Button("Update", save_chages_button_action, buttonOption()),
             Renderer([]{ return filler(); })
         })
-    }) | border | CatchEvent([&](Event e){
+    }) | border | CatchEvent([&](Event e){          /* ESCAPE means cancel */
             if (e == Event::Escape) {
                 leave_edit_dialog_action();
                 return true;
             }
-            else if (e == Event::Return) {
+            else if (e == Event::Return) {          /* ENTER means save changes */
                 save_chages_button_action();
                 return true;
             }
@@ -621,13 +671,7 @@ void App::adminHome() {
             return false;
         });
 
-    /*
-     * ********
-     * REMOVE *
-     * ********
-     */
-
-    // Book management buttons
+    // Remove a book a book with this action
     auto remove_book_button_action = [&] {
         db->removeBook(all_books[all_book_selected]->book_id);
         all_books.erase(all_books.begin() + all_book_selected);
@@ -636,12 +680,7 @@ void App::adminHome() {
     };
     auto remove_book_button = Button("Remove", remove_book_button_action, buttonOption());
 
-    /*
-     * *************************
-     * User Management buttons *
-     * *************************
-    */
-
+    // KICK a user out
     auto remove_user_button_action = [&] {
         db->removeUser(all_users[all_user_selected]->username);
         all_users.erase(all_users.begin() + all_user_selected);
@@ -650,6 +689,7 @@ void App::adminHome() {
     };
     auto remove_user_button = Button("Remove", remove_user_button_action, buttonOption());
 
+    // BIG promotion for a user. Only admins can promote
     auto grant_privelege_button_action = [&] {
         db->makeAdmin(all_users[all_user_selected]->username);
         all_users[all_user_selected]->type = UserClass::ADMIN;
@@ -657,6 +697,7 @@ void App::adminHome() {
     auto grant_privelege_button = Button("Grant Admin Rights", grant_privelege_button_action, buttonOption()) |
         Maybe([&] { return all_users[all_user_selected]->type == UserClass::NORMAL; });
 
+    // Degrade an admin to a normal user
     auto revoke_privelege_button_action = [&] {
         db->demoteAdmin(all_users[all_user_selected]->username);
         all_users[all_user_selected]->type = UserClass::NORMAL;
@@ -670,6 +711,7 @@ void App::adminHome() {
         Maybe([&] { return all_users[all_user_selected]->type == UserClass::ADMIN; });
 
 
+    // Password changing buffers and flags
     std::string new_password;
     bool deleting_account = false, password_change_success = false;
 
@@ -747,14 +789,17 @@ void App::adminHome() {
         main_tab
     }) | border;
 
+    // Off we go. It is all displayed
     screen.Loop(home_screen);
 }
 
 void App::normalHome() {
+    // This is regular user
     using namespace ftxui;
 
     std::string username = active_user->username;
 
+    // Fetch all books from database
     BookStack all_books = db->getAllBooks();
 
     auto findBook = [&](const std::size_t book_id) -> BookPtr {
@@ -765,6 +810,7 @@ void App::normalHome() {
         return *ptr;
     };
 
+    // Fetch borrowed books
     BookStack borrowed_books = db->getBorrowed(username);
     BookStack borrowed;
     for(auto book : borrowed_books) {
@@ -772,6 +818,7 @@ void App::normalHome() {
     }
     borrowed_books.clear();
 
+    // Fetch favourite books
     BookStack favourites_books = db->getFavourites(username);
     BookStack favourites;
     for (auto book : favourites_books) {
@@ -795,6 +842,7 @@ void App::normalHome() {
     int all_book_selected = 0;
     auto all_book_menu = Container::Vertical({}, &all_book_selected);
 
+    // Add books to the menu
     for(int i = 0; i<all_books.size(); ++i){
         all_book_menu->Add(
             MenuEntry(all_books[i]->author + "_" + all_books[i]->title, menuEntryOption()) | Maybe([&, i] {
@@ -809,6 +857,7 @@ void App::normalHome() {
     int favourite_book_selected = 0;
     auto favourites_menu = Container::Vertical({}, &favourite_book_selected);
 
+    // Favaourites in the menu
     for(int i = 0; i<favourites.size(); ++i){
         favourites_menu->Add(
             MenuEntry(favourites[i]->author + "_" + favourites[i]->title, menuEntryOption()) | Maybe([&, i] {
@@ -823,6 +872,7 @@ void App::normalHome() {
     int borrowed_book_selected = 0;
     auto borrowed_menu = Container::Vertical({}, &borrowed_book_selected);
 
+    // Add borrowed books to the borrowed books menu
     for(int i = 0; i<borrowed.size(); ++i) {
         borrowed_menu->Add(
             MenuEntry(borrowed[i]->author + "_" + borrowed[i]->title, menuEntryOption()) | Maybe([&, i] {
@@ -842,8 +892,11 @@ void App::normalHome() {
         });
     };
 
+    // What happens when a book is borrowed
     auto borrow_button_action = [&] {
         BookPtr book;
+        // The book borrowing can be done from all_books tab or favourites tab.
+        // Appropriate book must be selected based on condition
         if (main_menu_selected == 0) {
             book = all_books[all_book_selected];
         }
@@ -851,6 +904,8 @@ void App::normalHome() {
             book = favourites[favourite_book_selected];
         }
 
+        // Try borrowing. If a book is already borrowed, an error is thrown.
+        // In that case, just quietly return. Meaning DO NOTHING.
         try {
             db->borrow(username, book->book_id);
         }
@@ -863,29 +918,39 @@ void App::normalHome() {
         // one borrowed, minus one from available books
         --book->quantity;
 
+        // Add newly borrowed book to the in-memory catalog of borrowed books
         auto indx = borrowed.size();
         borrowed.push_back(book);
+
+        // New book is borrowed. Put it on the borrowed menu
         borrowed_menu->ChildAt(0)->Add(
             MenuEntry(borrowed[indx]->author + "_" + borrowed[indx]->title, menuEntryOption()) | Maybe([&, indx] {
                 return searchString.empty() || isSearchResult(borrowed[indx], searchString);
             })
         );
     };
+
+    // This finds out if a book is already borrowed
     auto isBorrowed = [&](const BookPtr& book) -> bool {
         return std::ranges::any_of(borrowed, [&](const BookPtr& bok) { return book == bok; });
     };
 
+    // The button to borrow books
     auto borrow_button = Button("Borrow", borrow_button_action, buttonOption()) | Renderer([&](Element borrow) {
         if (isBorrowed(all_books[all_book_selected])) {
+            // When borrowed, say "borrowed"
             return text("Borrowed ");
         }
         else {
+            // Else keep it as is
             return std::move(borrow);
         }
     });
 
+    // What does it mean to like a book?
     auto like_button_action = [&] {
         BookPtr book;
+        // Liking can be from borrowed tab or all_books tab. Act accordingly
         if (main_menu_selected == 0) {
             book = all_books[all_book_selected];
         }
@@ -893,6 +958,7 @@ void App::normalHome() {
             book = borrowed[borrowed_book_selected];
         }
 
+        // Try liking. If error, it is already liked. Ignore that.
         try {
             db->addFavourite(username, book->book_id);
         }
@@ -902,8 +968,11 @@ void App::normalHome() {
             return;
         }
 
+        // We have a new like at hand. Place it in the ranks of favourites in memory
         auto indx = favourites.size();
         favourites.push_back(book);
+
+        // In the menu too
         favourites_menu->ChildAt(0)->Add(
             MenuEntry(favourites[indx]->author + "_" + favourites[indx]->title, menuEntryOption()) | Maybe([&, indx] {
                 return searchString.empty() || isSearchResult(favourites[indx], searchString);
@@ -911,10 +980,12 @@ void App::normalHome() {
         );
     };
 
+    // Is it liked? How would we know?
     auto isFavourite = [&](const BookPtr& book) -> bool {
         return std::ranges::any_of(favourites, [&](const BookPtr& bok) { return book == bok; });
     };
 
+    // Like button.
     auto like_button = Button("Like", like_button_action, buttonOption()) | Renderer([&](Element like) {
         if (isFavourite(all_books[all_book_selected])) {
             return text(" Liked");
@@ -924,9 +995,12 @@ void App::normalHome() {
         }
     });
 
+    // This is return action. This is THE WAY to return books
     auto unborrow_button_action = [&] {
+        // Register with the database
         db->unborrow(username, borrowed[borrowed_book_selected]->book_id);
 
+        // The is book is return. Increase the available quantity
         ++borrowed[borrowed_book_selected]->quantity;
 
         // delete from borrowed books working copy
@@ -936,6 +1010,7 @@ void App::normalHome() {
     };
     auto unborrow_button = Button("Return", unborrow_button_action, buttonOption());
 
+    // No longer like this book. Banish it from liked books.
     auto unlike_button_action = [&] {
         // remove from database
         db->removeFavourite(username, favourites[favourite_book_selected]->book_id);
@@ -946,15 +1021,19 @@ void App::normalHome() {
     };
     auto unlike_button = Button("Unlike", unlike_button_action, buttonOption());
 
+    // New password buffer and flags
     std::string new_password;
     bool deleting_account = false, password_change_success = false;
 
+    // Rating stuff
     bool show_rate_dialog = false;
     auto rate_action = [&](int rating) {
         // Take rating
         show_rate_dialog = false;
         return []{};
     };
+
+    // Rate button maker with their number of stars
     auto rate_button = [&](int n) {
         return Button(std::string(n, '*'), [&, n]{
             auto book = borrowed[borrowed_book_selected];
@@ -962,6 +1041,8 @@ void App::normalHome() {
             show_rate_dialog = false;
         }, buttonOption());
     };
+
+    // This is the little floating RATE window
     auto rate_dialog = Container::Vertical({
         Renderer([&] { return text("Rate: " + borrowed[borrowed_book_selected]->title); }),
         Renderer([&] { return separator(); }),
@@ -970,7 +1051,7 @@ void App::normalHome() {
         })
     }) | border | size(ftxui::WIDTH, EQUAL, 30) | size(ftxui::HEIGHT, EQUAL, 5)
         | CatchEvent([&](Event e) {
-            if (e == Event::Escape){
+            if (e == Event::Escape){            /* ESCAPE-ing  is cancelling */
                 show_rate_dialog = false;
                 return true;
             }
@@ -1089,10 +1170,12 @@ void App::normalHome() {
         main_tab
     }) | border;
 
+    // All done, now loop it
     screen.Loop(home_screen);
 }
 
 void App::home() {
+    // WHO is this newly logged-in user?
     if(active_user->type == UserClass::NORMAL){
         normalHome();
     }
@@ -1101,6 +1184,7 @@ void App::home() {
     }
 }
 
+// That section always on the right side, displaying things about books
 ftxui::Component App::bookDetail(const BookStack& books, const int& selector) {
     using namespace ftxui;
 
@@ -1137,6 +1221,7 @@ ftxui::Component App::bookDetail(const BookStack& books, const int& selector) {
     });
 }
 
+// This windows talks about users instead
 ftxui::Component App::userDetail(const Users& users, const int& selector) {
     using namespace ftxui;
 
@@ -1154,27 +1239,22 @@ ftxui::Component App::userDetail(const Users& users, const int& selector) {
     });
 }
 
-
+// Does a book meet search criteria?
 bool App::isSearchResult(const BookPtr& book, const std::string& searchString) {
     std::regex pattern {".*" + searchString + ".*", std::regex_constants::icase};
     return std::regex_match(book->title, pattern) || std::regex_match(book->author, pattern);
 }
 
+// Does a book meet search criteria?
 bool App::isSearchResult(const UserPtr& usr, const std::string& searchString) {
     std::regex pattern {".*" + searchString + ".*", std::regex_constants::icase};
     return std::regex_match(usr->username, pattern) || std::regex_match(usr->email, pattern);
 }
 
-ftxui::Component App::label(const std::string txt) {
-    using namespace ftxui;
-    return Container::Horizontal({
-            Renderer([]{ return filler(); }),
-            Renderer([&txt]{ return text(txt); })
-        }) | size(ftxui::WIDTH, ftxui::EQUAL, 20);
-};
-
+// Changing account information
 ftxui::Component App::accountMgmtScreen(std::string& new_password, bool& password_change_success, bool& deleting_account) {
     using namespace ftxui;
+    // Succes alert after password change. Defining here is saves from rewritting in two places later
     static auto success_alert = [&] {
          return Container::Horizontal({
             Renderer([]{ return filler(); }),
@@ -1183,6 +1263,7 @@ ftxui::Component App::accountMgmtScreen(std::string& new_password, bool& passwor
         });
     };
 
+    // ERROR. Defining here is saves from rewritting in two places later
     static auto error_alert = [&](const std::string txt) {
          return Container::Horizontal({
             Renderer([]{ return filler(); }),
@@ -1191,7 +1272,7 @@ ftxui::Component App::accountMgmtScreen(std::string& new_password, bool& passwor
         });
     };
 
-
+    // THIS is done to change password
     static auto change_password_action = [&] {
         if(new_password.size() < 4)
             return;
@@ -1200,6 +1281,7 @@ ftxui::Component App::accountMgmtScreen(std::string& new_password, bool& passwor
         flip(password_change_success);
     };
 
+    // Root is special. Can't be removed, even by root itself.
     if (active_user->username == "root") {
         return Container::Vertical({
             Input(&new_password, " password", passwordInputOption()),
@@ -1218,6 +1300,7 @@ ftxui::Component App::accountMgmtScreen(std::string& new_password, bool& passwor
                 });
     }
 
+    // For other users
     return Container::Vertical({
         Input(&new_password, "            password", passwordInputOption()),
         error_alert("Password too short") | Maybe([&] {
