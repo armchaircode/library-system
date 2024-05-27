@@ -443,3 +443,21 @@ double Librarydb::rateBoot(std::size_t book_id, int n){
 
     return rating;
 }
+
+void Librarydb::updateBook(const BookPtr& book) {
+    auto query = R"#(
+        UPDATE "Books" SET
+                    [title] = ?1, [author] = ?2, [quantity] = ?3, [publisher] = ?4,
+                    [pub_year] = ?5, [description] = ?6, [edition] = ?7
+        WHERE [book_id] = ?
+    )#";
+    SQLite::Statement stmnt(*databs, query);
+    stmnt.bind(1, book->title);
+    stmnt.bind(2, book->author);
+    stmnt.bind(3, book->quantity);
+    book->publisher.empty() ? stmnt.bind(4) : stmnt.bind(4, book->publisher);
+    book->pub_year < 0 ? stmnt.bind(5) : stmnt.bind(5, book->pub_year);
+    book->description.empty() ? stmnt.bind(6) : stmnt.bind(6, book->description);
+    book->edition < 0 ? stmnt.bind(7) : stmnt.bind(7, book->edition);
+    stmnt.exec();
+}
