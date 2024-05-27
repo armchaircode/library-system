@@ -29,6 +29,8 @@
 #include <regex> // regex, regex_match
 #include <vector> // vector
 
+using Action = std::function<void()>;
+
 class Exit : public std::exception {};
 
 ftxui::MenuEntryOption menuEntryOption(){
@@ -106,6 +108,16 @@ ftxui::InputOption passwordInputOption() {
 ftxui::ButtonOption buttonOption() {
     return ftxui::ButtonOption::Ascii();
 }
+
+ftxui::ComponentDecorator catchEnter(const Action& action) {
+    return ftxui::CatchEvent([&](ftxui::Event e){
+        if (e == ftxui::Event::Return) {
+            action();
+            return true;
+        }
+        return false;
+    });
+};
 
 int App::run() {
     try {
@@ -380,32 +392,55 @@ void App::adminHome() {
         });
     };
 
-    bool add_book_ok = false, show_add_click_error = false, add_book_successfull = false;
+    auto digit_filter = []{
+        return CatchEvent([](Event e) {
+            return e.is_character() && !std::isdigit(e.character()[0]);
+        });
+    };
+
     std::string add_book_title, add_book_author, add_book_quantity, add_book_publisher,
-            add_book_pub_year, add_book_edition, add_book_description, add_book_error_message;
+            add_book_pub_year, add_book_edition, add_book_description;
     int text_label_size = 20;
+
+    bool show_success_alert = false;
+    std::string success_message;
+    auto success_alert = [&] {
+         return Container::Horizontal({
+            Renderer([]{ return filler(); }),
+            Renderer([&success_message] { return text(success_message) | color(Color::Green); }),
+            Renderer([]{ return filler(); })
+        }) | Maybe(&show_success_alert);
+    };
+
+    bool show_error_alert = false;
+    std::string error_message;
+    auto add_edit_book_alert = [&] {
+         return Container::Horizontal({
+            Renderer([]{ return filler(); }),
+            Renderer([&error_message] { return text(error_message) | color(Color::Red); }),
+            Renderer([]{ return filler(); })
+        }) | Maybe(&show_error_alert);
+    };
+
 
     // action performed when add book function is asked
     auto add_book_action = [&]{
-            if ( ! add_book_ok)
-                return;
-
             bool required_field_missing_error = true;
             if(add_book_title.empty()) {
-                add_book_error_message = "Title is required";
+                error_message = "Title is required";
             }
             else if (add_book_author.empty()) {
-                add_book_error_message = "Author name is required";
+                error_message = "Author name is required";
             }
             else if(add_book_quantity.empty()) {
-                add_book_error_message = "Quantity is required";
+                error_message = "Quantity is required";
             }
             else {
                 required_field_missing_error = false;
             }
 
             if(required_field_missing_error) {
-                flip(show_add_click_error);
+                flip(show_error_alert);
                 return;
             }
 
@@ -432,7 +467,8 @@ void App::adminHome() {
             );
 
             // show success message
-            flip(add_book_successfull);
+            success_message = "Book added successfully";
+            flip(show_success_alert);
 
             //clear things up
             add_book_title.clear();
@@ -444,58 +480,152 @@ void App::adminHome() {
             add_book_description.clear();
        };
 
-    auto add_book_alert = Renderer([&add_book_error_message] { return text(add_book_error_message) | color(Color::Red); }) |
-        Maybe([&] {
-            add_book_ok = false;
-            auto isItDigit = [](const char ch) { return std::isdigit(ch); };
-            if (!add_book_quantity.empty() && ! std::ranges::all_of(add_book_quantity, isItDigit)) {
-                add_book_error_message = "Invalid quantity input";
-            }
-            else if (!add_book_pub_year.empty() && ! std::ranges::all_of(add_book_pub_year, isItDigit)) {
-                add_book_error_message = "Invalid publication year";
-            }
-            else if (!add_book_edition.empty() && ! std::ranges::all_of(add_book_edition, isItDigit)) {
-                add_book_error_message = "Invalid edition number";
-            }
-            else {
-                add_book_ok = true;
-            }
-            return !add_book_ok || show_add_click_error;
-        });
+    auto make_label = [](const std::string txt) {
+        using namespace ftxui;
+        return Container::Horizontal({
+                Renderer([]{ return filler(); }),
+                Renderer([txt]{ return text(txt); })
+            }) | size(ftxui::WIDTH, ftxui::EQUAL, 20);
+    };
 
-    auto add_book_container = Container::Vertical({
-        Container::Horizontal({
+    auto book_detail_inputs = [&]{
+        return Container::Horizontal({
             Renderer([]{ return filler(); }),
             Container::Vertical({
-                label("Title"),
-                label("Author"),
-                label("Quantity"),
-                label("Publisher"),
-                label("Pub. Year"),
-                label("Edition"),
-                label("Description")
+                make_label("Title"),
+                make_label("Author"),
+                make_label("Quantity") ,
+                make_label("Publisher"),
+                make_label("Pub. Year"),
+                make_label("Edition"),
+                make_label("Description")
             }),
             Renderer([]{ return separator(); }),
             Container::Vertical({
                 Input(&add_book_title, "title", inputOption()),
                 Input(&add_book_author, "author", inputOption()),
-                Input(&add_book_quantity, "quantity", inputOption()),
+                Input(&add_book_quantity, "quantity", inputOption()) | digit_filter(),
                 Input(&add_book_publisher, "publisher", inputOption()),
-                Input(&add_book_pub_year, "year", inputOption()),
-                Input(&add_book_edition, "edition", inputOption()),
-                Input(&add_book_description, "description",InputOption())
+                Input(&add_book_pub_year, "year", inputOption()) | digit_filter(),
+                Input(&add_book_edition, "edition", inputOption()) | digit_filter(),
+                Input(&add_book_description, "description", inputOption())
                     | size(ftxui::WIDTH, ftxui::LESS_THAN, 50)
             }),
             Renderer([]{ return filler(); })
-        }),
-        add_book_alert,
-        Renderer([] { return text("Book added successfully") | color(Color::Green); }) | Maybe(&add_book_successfull),
+        });
+    };
+
+    auto add_book_container = Container::Vertical({
+        book_detail_inputs(),
+        add_edit_book_alert(),
+        success_alert(),
         Container::Horizontal({
             Renderer([]{ return filler(); }),
             Button("Add Book", add_book_action, buttonOption()),
             Renderer([]{ return filler(); })
         })
-    });
+    }) | CatchEvent([&](Event e) {
+            if (e == Event::Return){
+                add_book_action();
+                return true;
+            }
+            return false;
+        });
+
+    /*
+        * EDITING
+    */
+
+    bool show_book_edit_dialog = false;
+
+    auto edit_button_action = [&] {
+        auto book = all_books[all_book_selected];
+        add_book_title = book->title;
+        add_book_author = book->author;
+        add_book_quantity = std::to_string(book->quantity);
+        add_book_publisher = book->publisher;
+        add_book_pub_year = book->pub_year < 0 ? "" : std::to_string(book->pub_year);
+        add_book_edition = book->edition < 0 ? "" : std::to_string(book->edition);
+        add_book_description = book->description;
+
+        show_book_edit_dialog = true;
+    };
+    auto edit_book_button = Button("Edit", edit_button_action, buttonOption());
+
+    auto leave_edit_dialog_action = [&] {
+        // clear up
+        add_book_title.clear();
+        add_book_author.clear();
+        add_book_quantity.clear();
+        add_book_publisher.clear();
+        add_book_pub_year.clear();
+        add_book_edition.clear();
+        add_book_description.clear();
+
+        show_book_edit_dialog = false;
+    };
+
+    auto save_chages_button_action = [&] {
+        bool required_field_missing_error = true;
+        if(add_book_title.empty()) {
+            error_message = "Title is required";
+        }
+        else if (add_book_author.empty()) {
+            error_message = "Author name is required";
+        }
+        else if(add_book_quantity.empty()) {
+            error_message = "Quantity is required";
+        }
+        else {
+            required_field_missing_error = false;
+        }
+
+        if(required_field_missing_error) {
+            flip(show_error_alert);
+            return;
+        }
+
+        auto book = all_books[all_book_selected];
+        book->title = add_book_title;
+        book->author = add_book_author;
+        book->quantity = add_book_quantity.empty() ? -1 : std::stoi(add_book_quantity);
+        book->publisher = add_book_publisher;
+        book->pub_year = add_book_pub_year.empty() ? -1 : std::stoi(add_book_pub_year);
+        book->edition = add_book_edition.empty() ? -1 : std::stoi(add_book_edition);
+        book->description = add_book_description;
+
+        db->updateBook(book);
+        leave_edit_dialog_action();
+    };
+
+    auto edit_book_container = Container::Vertical({
+        book_detail_inputs(),
+        Renderer([]{ return separator(); }),
+        add_edit_book_alert(),
+        success_alert(),
+        Container::Horizontal({
+            Renderer([]{ return filler(); }),
+            Button("Update", save_chages_button_action, buttonOption()),
+            Renderer([]{ return filler(); })
+        })
+    }) | border | CatchEvent([&](Event e){
+            if (e == Event::Escape) {
+                leave_edit_dialog_action();
+                return true;
+            }
+            else if (e == Event::Return) {
+                save_chages_button_action();
+                return true;
+            }
+
+            return false;
+        });
+
+    /*
+     * ********
+     * REMOVE *
+     * ********
+     */
 
     // Book management buttons
     auto remove_book_button_action = [&] {
@@ -506,7 +636,12 @@ void App::adminHome() {
     };
     auto remove_book_button = Button("Remove", remove_book_button_action, buttonOption());
 
-    // User Management buttons
+    /*
+     * *************************
+     * User Management buttons *
+     * *************************
+    */
+
     auto remove_user_button_action = [&] {
         db->removeUser(all_users[all_user_selected]->username);
         all_users.erase(all_users.begin() + all_user_selected);
@@ -553,11 +688,12 @@ void App::adminHome() {
                 Renderer([] { return filler(); }),
                 Container::Horizontal({
                     Renderer([] { return filler(); }),
+                    edit_book_button,
                     remove_book_button,
                     Renderer([] { return filler(); })
                 })
             })
-        }) | Maybe([&] { return ! all_books.empty(); }),
+        }) | Maybe([&] { return ! all_books.empty(); }) | Modal(edit_book_container, &show_book_edit_dialog),
 
         Container::Horizontal({
             Container::Vertical({
@@ -1039,46 +1175,63 @@ ftxui::Component App::label(const std::string txt) {
 
 ftxui::Component App::accountMgmtScreen(std::string& new_password, bool& password_change_success, bool& deleting_account) {
     using namespace ftxui;
+    static auto success_alert = [&] {
+         return Container::Horizontal({
+            Renderer([]{ return filler(); }),
+            Renderer([] { return text("Password changed successfully") | color(Color::Green); }),
+            Renderer([]{ return filler(); })
+        });
+    };
+
+    static auto error_alert = [&](const std::string txt) {
+         return Container::Horizontal({
+            Renderer([]{ return filler(); }),
+            Renderer([txt] { return text(txt) | color(Color::Red); }),
+            Renderer([]{ return filler(); })
+        });
+    };
+
+
+    static auto change_password_action = [&] {
+        if(new_password.size() < 4)
+            return;
+        db->changePassword(active_user->username, new_password);
+        new_password.clear();
+        flip(password_change_success);
+    };
 
     if (active_user->username == "root") {
         return Container::Vertical({
             Input(&new_password, " password", passwordInputOption()),
-            Renderer([]{ return text("Password too short") | color(Color::Red); }) | Maybe([&] {
+            error_alert("Password too short") | Maybe([&] {
                 return !new_password.empty() && new_password.size() < 4;
             }),
-            Renderer([] { return text("Password changed successfully") | color(Color::Green); }) |
-                Maybe(&password_change_success),
-            Button("Change passoword", [&]{
-                if(new_password.size() < 4)
-                    return;
-                db->changePassword(active_user->username, new_password);
-                new_password.clear();
-                flip(password_change_success);
-            }, buttonOption())
-        });
+            success_alert() | Maybe(&password_change_success),
+            Button("Change passoword", change_password_action, buttonOption())
+            }) | CatchEvent([&](Event e) {
+                if (e == Event::Return) {
+                    change_password_action();
+                    return true;
+                }
+
+                return false;
+                });
     }
 
     return Container::Vertical({
         Input(&new_password, "            password", passwordInputOption()),
-        Renderer([]{ return text("Password too short") | color(Color::Red); }) | Maybe([&] {
+        error_alert("Password too short") | Maybe([&] {
             return !new_password.empty() && new_password.size() < 4;
         }),
-        Renderer([] { return text("Password changed successfully") | color(Color::Green); }) |
-            Maybe(&password_change_success),
+        success_alert() | Maybe(&password_change_success),
         Container::Horizontal({
-            Button("Change passoword", [&]{
-                if(new_password.size() < 4)
-                    return;
-                db->changePassword(active_user->username, new_password);
-                new_password.clear();
-                flip(password_change_success);
-            }, buttonOption()),
+            Button("Change passoword", change_password_action, buttonOption()),
             Button("Delete Account", [&]{
                 deleting_account = true;
             }, buttonOption())
         }),
         Container::Vertical({
-            Renderer([]{ return text("This action is irreversible. Are you sure?") | color(Color::Red); }),
+            error_alert("This action is irreversible. Are you sure?"),
             Container::Horizontal({
                 Renderer([] { return filler(); }),
                 Button("Yes", [&] {
@@ -1093,5 +1246,12 @@ ftxui::Component App::accountMgmtScreen(std::string& new_password, bool& passwor
                 Renderer([] { return filler(); })
             })
         }) | Maybe(&deleting_account)
+    }) | CatchEvent([&](Event e) {
+        if (e == Event::Return) {
+            change_password_action();
+            return true;
+        }
+
+        return false;
     });
 }

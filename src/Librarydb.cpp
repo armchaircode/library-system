@@ -8,7 +8,6 @@
 
 #include <cstddef> // size_t
 #include <cstdint> // int64_t
-#include <fstream>
 #include <memory> // make_shared
 #include <stdexcept> // invalid_argument
 #include <string> // string
@@ -449,7 +448,7 @@ void Librarydb::updateBook(const BookPtr& book) {
         UPDATE "Books" SET
                     [title] = ?1, [author] = ?2, [quantity] = ?3, [publisher] = ?4,
                     [pub_year] = ?5, [description] = ?6, [edition] = ?7
-        WHERE [book_id] = ?
+        WHERE [book_id] = ?8
     )#";
     SQLite::Statement stmnt(*databs, query);
     stmnt.bind(1, book->title);
@@ -459,5 +458,6 @@ void Librarydb::updateBook(const BookPtr& book) {
     book->pub_year < 0 ? stmnt.bind(5) : stmnt.bind(5, book->pub_year);
     book->description.empty() ? stmnt.bind(6) : stmnt.bind(6, book->description);
     book->edition < 0 ? stmnt.bind(7) : stmnt.bind(7, book->edition);
+    stmnt.bind(8, static_cast<std::int64_t>(book->book_id));
     stmnt.exec();
 }
