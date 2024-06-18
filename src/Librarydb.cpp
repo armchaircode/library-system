@@ -122,7 +122,7 @@ void Librarydb::makeSchema(){
                         WHERE username = NEW.username;
                 END
                 )#");
-    trxn.commit();
+        trxn.commit();
     }
     catch(SQLite::Exception& e) {
         trxn.rollback();
@@ -427,7 +427,7 @@ void Librarydb::demoteAdmin(const std::string& username) {
     stmnt.exec();
 }
 
-double Librarydb::rateBoot(std::size_t book_id, int n){
+double Librarydb::rateBook(std::size_t book_id, int n){
     SQLite::Statement stmnt(*databs, R"#(SELECT [raters], [rating] FROM "books" WHERE [book_id] = ?)#");
     stmnt.bind(1, static_cast<std::int64_t>(book_id));
     stmnt.executeStep();

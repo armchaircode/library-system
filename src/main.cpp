@@ -66,7 +66,6 @@ int main(int argc, char** argv) {
     data_dir /= "library-system";
     std::filesystem::create_directory(data_dir);
 
-
     if(not db_path.empty()) {
         try{
             auto path = std::filesystem::canonical(db_path);

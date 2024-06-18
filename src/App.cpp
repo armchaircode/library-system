@@ -24,7 +24,6 @@
 #include <exception> // exception
 #include <stdexcept> // runtime_error
 #include <string> // string
-#include <sys/types.h>
 #include <thread> // thread
 #include <regex> // regex, regex_match
 #include <vector> // vector
@@ -112,17 +111,6 @@ ftxui::ButtonOption buttonOption() {
     return ftxui::ButtonOption::Ascii();
 }
 
-// Catch ENTER key and handle it by its action
-ftxui::ComponentDecorator catchEnter(const Action& action) {
-    return ftxui::CatchEvent([&](ftxui::Event e){
-        if (e == ftxui::Event::Return) {
-            action();
-            return true;
-        }
-        return false;
-    });
-};
-
 int App::run() {
     try {
         login();
@@ -163,10 +151,6 @@ void App::attemptRestore() {
     auto usr = db->restoreSession(readSession(session_file));
     if(usr){
         active_user = std::make_unique<User>(*usr);
-    }
-    else{
-        // restore failed, session expired
-        return;
     }
 }
 
@@ -285,7 +269,7 @@ void App::login() {
             home();
         }
         else {
-            // lobin failed
+            // login failed
             login_password.clear();
             flip(show_failed_authentication);
         }
@@ -486,8 +470,8 @@ void App::adminHome() {
         book->author = add_book_author;
         book->quantity = std::stoi(add_book_quantity);
         book->publisher = add_book_publisher;
-        add_book_pub_year.empty() ? book->pub_year = -1 : book->pub_year = std::stoi(add_book_pub_year);
-        add_book_edition.empty() ? book->edition = -1 : book->edition = std::stoi(add_book_edition);
+        book->pub_year = add_book_pub_year.empty() ? -1 : std::stoi(add_book_pub_year);
+        book->edition = add_book_edition.empty() ? -1 : std::stoi(add_book_edition);
 
         // add the new book to the database, working copy and menu
         db->addBook(book);
@@ -635,7 +619,7 @@ void App::adminHome() {
         // Edit the book data
         book->title = add_book_title;
         book->author = add_book_author;
-        book->quantity = add_book_quantity.empty() ? -1 : std::stoi(add_book_quantity);
+        book->quantity = std::stoi(add_book_quantity);
         book->publisher = add_book_publisher;
         book->pub_year = add_book_pub_year.empty() ? -1 : std::stoi(add_book_pub_year);
         book->edition = add_book_edition.empty() ? -1 : std::stoi(add_book_edition);
@@ -1027,17 +1011,12 @@ void App::normalHome() {
 
     // Rating stuff
     bool show_rate_dialog = false;
-    auto rate_action = [&](int rating) {
-        // Take rating
-        show_rate_dialog = false;
-        return []{};
-    };
 
     // Rate button maker with their number of stars
     auto rate_button = [&](int n) {
         return Button(std::string(n, '*'), [&, n]{
             auto book = borrowed[borrowed_book_selected];
-            book->rating = db->rateBoot(book->book_id, n);
+            book->rating = db->rateBook(book->book_id, n);
             show_rate_dialog = false;
         }, buttonOption());
     };
@@ -1245,7 +1224,7 @@ bool App::isSearchResult(const BookPtr& book, const std::string& searchString) {
     return std::regex_match(book->title, pattern) || std::regex_match(book->author, pattern);
 }
 
-// Does a book meet search criteria?
+// Does a user meet search criteria?
 bool App::isSearchResult(const UserPtr& usr, const std::string& searchString) {
     std::regex pattern {".*" + searchString + ".*", std::regex_constants::icase};
     return std::regex_match(usr->username, pattern) || std::regex_match(usr->email, pattern);

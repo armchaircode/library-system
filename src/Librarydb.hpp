@@ -46,7 +46,7 @@ class Librarydb{
         void makeAdmin(const std::string& username);
         void demoteAdmin(const std::string& username);
 
-        double rateBoot(std::size_t book_id, int stars);
+        double rateBook(std::size_t book_id, int stars);
         void updateBook(const BookPtr& book);
     private:
         void init();
